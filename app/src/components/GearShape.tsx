@@ -266,14 +266,62 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
       ].map(([x, y], i) => <Circle key={`leg${i}`} x={x} y={y} radius={legR} fill={ink} listening={false} />);
 
     if (gear.category === 'chair') {
-      // 좌석 + 등받이(-x 쪽) + 팔걸이 → 방향을 알 수 있게
-      const back = L * 0.22;
+      // 위에서 본 의자. 등받이는 -x(뒤), 앞은 +x
+      const cstyle = gear.style ?? 'sling';
+      const legDot = (x: number, y: number, k: string) => <Circle key={k} x={x} y={y} radius={legR} fill={ink} listening={false} />;
+      if (cstyle === 'arm') {
+        // 팔걸이형(스노우피크 로우체어): 사각 프레임 + 양쪽 원목 팔걸이 + 시트·등받이 원단
+        const arm = W * 0.13;
+        const back = L * 0.3;
+        return (
+          <Group opacity={op}>
+            <Rect x={x0} y={y0} width={L} height={W} cornerRadius={2 / scale} fill="transparent" stroke={ink} strokeWidth={thin} listening={true} />
+            {/* 시트 */}
+            <Rect x={x0 + back * 0.6} y={y0 + arm} width={L - back * 0.6 - L * 0.06} height={W - arm * 2} cornerRadius={Math.min(L, W) * 0.05} fill="#d4d4d2" stroke={ink} strokeWidth={thin} listening={false} />
+            {/* 등받이 (뒤로 기울어진 원단) */}
+            <Rect x={x0} y={y0 + arm} width={back} height={W - arm * 2} cornerRadius={Math.min(L, W) * 0.04} fill="#6a6a68" listening={false} />
+            {/* 원목 팔걸이 */}
+            <Rect x={x0 + back * 0.4} y={y0} width={L - back * 0.4} height={arm} cornerRadius={arm / 2} fill="#9c9690" stroke={ink} strokeWidth={thin} listening={false} />
+            <Rect x={x0 + back * 0.4} y={-y0 - arm} width={L - back * 0.4} height={arm} cornerRadius={arm / 2} fill="#9c9690" stroke={ink} strokeWidth={thin} listening={false} />
+          </Group>
+        );
+      }
+      // 헬리녹스형: 중앙 허브에서 4개 다리가 벌어지고, 버킷 시트 + 등받이
+      const high = cstyle === 'sling-high';
+      const hubX = -L * 0.05;
+      const fl = [-x0 - L * 0.04, y0 + W * 0.04];
+      const fr = [-x0 - L * 0.04, -y0 - W * 0.04];
+      const bl = [x0 + L * 0.04, y0 + W * 0.1];
+      const br = [x0 + L * 0.04, -y0 - W * 0.1];
+      const backLen = L * (high ? 0.5 : 0.36);
+      // 시트(버킷): 앞쪽이 넓고 뒤쪽으로 좁아지는 둥근 형태
+      const seat = [
+        -x0 - L * 0.1, y0 + W * 0.14,
+        -x0 - L * 0.02, 0,
+        -x0 - L * 0.1, -y0 - W * 0.14,
+        x0 + backLen, -y0 - W * 0.2,
+        x0 + backLen, y0 + W * 0.2,
+      ];
+      const backrest = [
+        x0 + backLen, y0 + W * 0.2,
+        x0 + backLen, -y0 - W * 0.2,
+        x0 + L * 0.06, -y0 - W * 0.26,
+        x0 + L * 0.02, 0,
+        x0 + L * 0.06, y0 + W * 0.26,
+      ];
       return (
         <Group opacity={op}>
-          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.18} fill="#d6d6d4" stroke={ink} strokeWidth={sw} />
-          <Rect x={x0} y={y0 + W * 0.06} width={back} height={W * 0.88} cornerRadius={back / 2} fill="#3a3a3a" listening={false} />
-          <Line points={[x0 + back, y0 + W * 0.1, -x0 - L * 0.08, y0 + W * 0.1]} stroke={ink} strokeWidth={mid} lineCap="round" listening={false} />
-          <Line points={[x0 + back, -y0 - W * 0.1, -x0 - L * 0.08, -y0 - W * 0.1]} stroke={ink} strokeWidth={mid} lineCap="round" listening={false} />
+          <Rect x={x0} y={y0} width={L} height={W} fill="transparent" listening={true} />
+          {[fl, fr, bl, br].map(([x, y], i) => (
+            <Line key={`f${i}`} points={[hubX, 0, x, y]} stroke={ink} strokeWidth={mid} lineCap="round" listening={false} />
+          ))}
+          <Line points={[fl[0], fl[1], bl[0], bl[1]]} stroke={ink} strokeWidth={thin} opacity={0.6} listening={false} />
+          <Line points={[fr[0], fr[1], br[0], br[1]]} stroke={ink} strokeWidth={thin} opacity={0.6} listening={false} />
+          <Line points={seat} closed tension={0.35} fill="#cfcfcd" stroke={ink} strokeWidth={sw} listening={false} />
+          <Line points={backrest} closed tension={0.3} fill={high ? '#4a4a48' : '#6a6a68'} stroke={ink} strokeWidth={thin} listening={false} />
+          {high && <Rect x={x0 + L * 0.03} y={-W * 0.14} width={L * 0.08} height={W * 0.28} cornerRadius={L * 0.04} fill="#2e2e2c" listening={false} />}
+          <Circle x={hubX} radius={Math.min(L, W) * 0.05} fill="#555" listening={false} />
+          {[fl, fr, bl, br].map(([x, y], i) => legDot(x, y, `d${i}`))}
         </Group>
       );
     }

@@ -133,6 +133,16 @@ export function GearForm({
             </select>
           </label>
         )}
+        {d.category === 'chair' && (
+          <label>
+            의자 형태
+            <select value={d.style ?? 'sling'} onChange={(e) => set('style', e.target.value as Draft['style'])}>
+              <option value="sling">헬리녹스형 (로우백)</option>
+              <option value="sling-high">하이백형</option>
+              <option value="arm">팔걸이형 (로우체어)</option>
+            </select>
+          </label>
+        )}
         {d.category === 'table' && d.style === 'igt' && (
           <label>
             IGT 유닛 수
