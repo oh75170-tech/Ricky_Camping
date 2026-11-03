@@ -274,3 +274,11 @@ input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text
 .loading::after { content: ' ⋯'; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
 @media (max-width: 759px) { .catalog-search { flex-wrap: nowrap; } .catalog-search > .btn { white-space: nowrap; } }
+
+.install-box { margin-top: 22px; display: flex; flex-direction: column; gap: 10px; }
+.install-box h2 { font-size: 15px; margin: 0; }
+.install-grid { display: grid; gap: 10px; grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { .install-grid { grid-template-columns: 1fr; } }
+.install-item { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); text-decoration: none; }
+.install-item span { font-size: 13px; color: var(--muted); }
+a.install-item:active { background: var(--soft); }

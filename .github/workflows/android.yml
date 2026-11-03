@@ -1,4 +1,4 @@
-name: Build Android app (APK)
+name: Build Android app (APK, test)
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: android-apk
@@ -45,7 +45,7 @@ jobs:
           npx cap sync android
       - name: Build APK
         run: |
-          # 고정 서명키: 새 버전을 기존 앱 위에 바로 업데이트 설치할 수 있도록
+          # (테스트 빌드용) 고정 서명키: 새 버전을 기존 앱 위에 바로 업데이트 설치할 수 있도록
           mkdir -p ~/.android && cp android-res/debug.keystore ~/.android/debug.keystore
           cd android
           chmod +x gradlew
@@ -55,12 +55,3 @@ jobs:
         with:
           name: CampCanvas-apk
           path: app/CampCanvas.apk
-      - name: Publish release (android-latest)
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release delete android-latest --yes --cleanup-tag || true
-          gh release create android-latest CampCanvas.apk \
-            --title "CampCanvas 안드로이드 앱 (최신 빌드 #${{ github.run_number }})" \
-            --notes "갤럭시탭/안드로이드용 설치 파일입니다. 휴대기기에서 CampCanvas.apk 를 내려받아 설치하세요. (빌드: ${{ github.sha }})" \
-            --target ${{ github.sha }}
