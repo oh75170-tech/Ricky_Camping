@@ -90,7 +90,7 @@ export function MoreTents({
             새 일행으로 옆에 배치
           </button>
         </div>
-        <p className="muted small">새 텐트는 기존 텐트 오른쪽에 1.5m 간격(팩·스트링 여유)으로 놓입니다. 손가락으로 끌어 옮기고, 주황색 손잡이로 회전하세요.</p>
+        <p className="muted small">새 텐트는 기존 텐트 오른쪽에 1.5m 간격(팩·스트링 여유)으로 놓입니다. 손가락으로 끌어 옮기고, 위쪽 동그란 손잡이로 회전하세요.</p>
       </div>
     </div>
   );
