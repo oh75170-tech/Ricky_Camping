@@ -67,6 +67,8 @@ export interface Gear {
   shape?: Shape;
   frame?: Frame;
   frameCount?: number;
+  /** 육각형(hex)일 때 위·아래 평평한 변의 길이 cm (없으면 길이의 1/2) */
+  flat?: number;
   /** 이너텐트 */
   inner?: SubLayer;
   /** 그라운드시트 */

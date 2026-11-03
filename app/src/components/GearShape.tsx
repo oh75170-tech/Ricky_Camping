@@ -15,11 +15,11 @@ const CAT_FILL: Record<string, string> = {
   etc: '#8a8a8a',
 };
 
-function hexPoints(L: number, W: number) {
-  // 길이 방향 꼭짓점 2개 + 상/하 각 2개
+function hexPoints(L: number, W: number, flat?: number) {
+  // 길이 방향 꼭짓점 2개 + 상/하 각 2개 (flat: 평평한 변 길이 px)
   const a = L / 2;
   const b = W / 2;
-  const c = L / 4;
+  const c = flat ? Math.min(flat, L) / 2 : L / 4;
   return [-a, 0, -c, -b, c, -b, a, 0, c, b, -c, b];
 }
 
@@ -43,6 +43,7 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
   const W = (gear.w / 100) * PX_PER_M;
   const isFurniture = FURNITURE.has(gear.category);
   const isTarp = gear.category === 'tarp';
+  const flatPx = gear.flat ? (gear.flat / 100) * PX_PER_M : undefined;
   const shape = gear.shape ?? (isTarp ? 'tarp-hexa' : 'rect');
   const fs = Math.max(8, 12 / scale);
   const stroke = selected ? '#000' : color;
@@ -63,8 +64,8 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
       case 'hex':
         return (
           <>
-            <Line points={hexPoints(L, W)} closed {...common} />
-            <Line points={hexPoints(L, W)} closed {...strokeOnly} />
+            <Line points={hexPoints(L, W, flatPx)} closed {...common} />
+            <Line points={hexPoints(L, W, flatPx)} closed {...strokeOnly} />
           </>
         );
       case 'tarp-hexa':
@@ -168,7 +169,7 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
         );
       }
       case 'onepole': {
-        const pts = hexPoints(L, W);
+        const pts = hexPoints(L, W, flatPx);
         return (
           <>
             {Array.from({ length: 6 }, (_, i) => (
