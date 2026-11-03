@@ -4,6 +4,7 @@ import { Catalog } from './pages/Catalog';
 import { Planner } from './pages/Planner';
 import { joinRoom } from './sync';
 import { getState } from './store';
+import { IS_PREVIEW } from './env';
 
 type Page = 'home' | 'catalog' | 'planner';
 
@@ -19,14 +20,15 @@ const fromHash = (): Page => {
 };
 
 export default function App() {
-  const [page, setPage] = useState<Page>(fromHash);
+  const [page, setPage] = useState<Page>(() => (IS_PREVIEW ? 'home' : fromHash()));
   useEffect(() => {
+    if (IS_PREVIEW) return;
     const on = () => setPage(fromHash());
     window.addEventListener('hashchange', on);
     return () => window.removeEventListener('hashchange', on);
   }, []);
   const go = (p: Page) => {
-    location.hash = p === 'home' ? '' : `#/${p}`;
+    if (!IS_PREVIEW) location.hash = p === 'home' ? '' : `#/${p}`;
     setPage(p);
   };
   if (page === 'catalog') return <Catalog onBack={() => go('home')} onPlan={() => go('planner')} />;

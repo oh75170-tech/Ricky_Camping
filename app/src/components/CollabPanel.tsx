@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { createRoom, leaveRoom, roomLink, useSyncStatus } from '../sync';
 import { serverUrl } from '../config';
 import { Icon } from './Icon';
+import { IS_PREVIEW } from '../env';
 
 export function CollabPanel({ onOpenSettings }: { onOpenSettings: () => void }) {
   const st = useSyncStatus();
@@ -29,7 +30,8 @@ export function CollabPanel({ onOpenSettings }: { onOpenSettings: () => void }) 
     <div className="panel-body">
       <h4>같이 편집하기</h4>
       <p className="muted small">링크를 받은 일행이 같은 배치도를 실시간으로 함께 수정할 수 있어요. 장비 이동·추가·삭제가 바로 반영됩니다.</p>
-      {!hasServer && (
+      {IS_PREVIEW && <p className="notice small">태블릿 미리보기에서는 서버 연결이 막혀 같이 편집을 쓸 수 없어요. 정식 배포 후 사용할 수 있습니다.</p>}
+      {!IS_PREVIEW && !hasServer && (
         <p className="notice small">
           서버 주소가 필요합니다.{' '}
           <button className="link" onClick={onOpenSettings}>
@@ -62,7 +64,7 @@ export function CollabPanel({ onOpenSettings }: { onOpenSettings: () => void }) 
       ) : (
         <button
           className="btn primary full"
-          disabled={!hasServer || busy}
+          disabled={IS_PREVIEW || !hasServer || busy}
           onClick={async () => {
             setBusy(true);
             setErr(null);

@@ -1,5 +1,6 @@
 import { useStore } from '../store';
 import { Icon } from '../components/Icon';
+import { IS_PREVIEW } from '../env';
 
 export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
   const owned = useStore((s) => s.owned.length);
@@ -9,7 +10,7 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
       <div className="home-hero">
         <div className="logo"><Icon name="tent" size={56} stroke={1.2} /></div>
         <h1>CampCanvas</h1>
-        <div className="home-by">by Rick_Camping</div>
+        <div className="home-by">by Rick_Camping{IS_PREVIEW && <span className="preview-pill">태블릿 미리보기</span>}</div>
         <p>텐트·타프·가구를 1m 격자 위에 미리 배치해보는 캠핑 시뮬레이터</p>
       </div>
       <div className="home-actions">

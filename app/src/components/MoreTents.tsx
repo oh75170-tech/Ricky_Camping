@@ -3,6 +3,7 @@ import { actions, allGear, useStore } from '../store';
 import type { Gear } from '../types';
 import { dimText } from './GearCard';
 import { Icon } from './Icon';
+import { ask } from '../env';
 
 export function MoreTents({
   activeSiteId,
@@ -37,7 +38,7 @@ export function MoreTents({
                 className="icon-btn"
                 aria-label="사이트 삭제"
                 onClick={() => {
-                  if (confirm(`'${s.name}' 사이트와 배치된 장비를 삭제할까요?`)) {
+                  if (ask(`'${s.name}' 사이트와 배치된 장비를 삭제할까요?`)) {
                     actions.removeSite(s.id);
                     if (s.id === activeSiteId) onActiveSite(sites[0].id);
                   }

@@ -8,6 +8,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { lookupGear, normalizeGear, NoKeyError } from '../ai';
 import { CORE_BRANDS } from '../data/gear';
 import { Icon } from '../components/Icon';
+import { ask } from '../env';
 
 type Found = Omit<Gear, 'id'>;
 
@@ -175,7 +176,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             <button
               className="btn ghost danger full"
               onClick={() => {
-                if (confirm('이 장비를 삭제할까요?')) {
+                if (ask('이 장비를 삭제할까요?')) {
                   actions.removeGear(editing.id);
                   setEditing(null);
                 }
