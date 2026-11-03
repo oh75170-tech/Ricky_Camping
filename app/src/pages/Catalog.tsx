@@ -5,7 +5,7 @@ import { GearCard } from '../components/GearCard';
 import { GearForm } from '../components/GearForm';
 import { Modal } from '../components/Modal';
 import { SettingsModal } from '../components/SettingsModal';
-import { lookupGear, normalizeGear, NoKeyError } from '../ai';
+import { aiReady, lookupGear, normalizeGear, NoKeyError } from '../ai';
 import { CORE_BRANDS } from '../data/gear';
 import { Icon } from '../components/Icon';
 import { ask, IS_PREVIEW } from '../env';
@@ -36,6 +36,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const [draft, setDraft] = useState<Partial<Gear> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const ql = q.trim().toLowerCase();
   const searching = ql.length > 0;
@@ -54,8 +55,33 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
     if (query.trim()) runAi(query, homepage, verifyOf);
   };
 
+  /** AI 없이도 되는 검색: 기기 브라우저에서 구글 검색 (홈페이지가 있으면 그 사이트 안에서) */
+  const browserSearchUrl = (query: string, homepage: string) => {
+    let site = '';
+    try {
+      if (homepage.trim()) site = ` site:${new URL(/^https?:\/\//.test(homepage) ? homepage : `https://${homepage}`).hostname}`;
+    } catch {
+      /* 잘못된 주소는 무시 */
+    }
+    return `https://www.google.com/search?q=${encodeURIComponent(`${query} 사이즈 제원${site}`)}`;
+  };
+
   const runAi = async (query: string, homepage: string, verifyOf?: Gear) => {
     abortRef.current?.abort();
+    if (!aiReady()) {
+      const t = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setAi({
+        query,
+        homepage,
+        verifyOf,
+        items: [],
+        selected: [],
+        busy: false,
+        blocked: 'nokey',
+        status: `AI가 아직 연결되지 않아 자동 검색을 할 수 없어요. (${t})\n· 설정에서 AI 접속 코드(서버 배포 후) 또는 개인 Anthropic API 키를 넣으면 자동으로 찾아 드려요.\n· 지금은 "브라우저에서 검색"으로 찾아보고 "직접 입력"으로 추가할 수 있어요.`,
+      });
+      return;
+    }
     const ac = new AbortController();
     abortRef.current = ac;
     const status = IS_PREVIEW
@@ -132,11 +158,14 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         className="catalog-search"
         onSubmit={(e) => {
           e.preventDefault();
-          if (q.trim()) openSearch(q.trim());
+          const v = (searchRef.current?.value ?? q).trim(); // 한글 입력 조합 중이어도 실제 값 사용
+          setQ(v);
+          openSearch(v);
         }}
       >
         <div className="search-box">
           <input
+            ref={searchRef}
             className="search"
             placeholder="장비명 입력 후 돋보기 → 웹에서 검색 (예: 엑스페드 메가매트)"
             value={q}
@@ -144,7 +173,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             enterKeyHint="search"
             aria-label="장비 검색"
           />
-          <button type="submit" className="search-go" aria-label="웹에서 검색" disabled={!q.trim()}>
+          <button type="submit" className="search-go" aria-label="웹에서 검색">
             <Icon name="search" size={18} />
           </button>
         </div>
@@ -214,9 +243,11 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             </button>
           </div>
         )}
-        <button className="fab" onClick={() => (setDraft(null), setEditing('new'))} aria-label="장비 직접 추가">
-          <Icon name="plus" size={26} />
-        </button>
+        {!ai && !editing && (
+          <button className="fab" onClick={() => (setDraft(null), setEditing('new'))} aria-label="장비 직접 추가">
+            <Icon name="plus" size={26} />
+          </button>
+        )}
       </main>
 
       {editing && (
@@ -287,6 +318,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               />
             </label>
             <p className="muted small">홈페이지를 넣으면 그 사이트에서 먼저 찾아봅니다. 비워두면 웹 전체에서 찾아요.</p>
+            {!aiReady() && !ai.status && <p className="notice small">AI가 아직 연결되지 않았어요. 검색을 누르면 브라우저 검색·직접 입력 방법을 안내해 드려요.</p>}
             <div className="form-actions">
               {ai.busy ? (
                 <button type="button" className="btn ghost" onClick={() => (abortRef.current?.abort(), setAi({ ...ai, busy: false, status: '중단했어요.' }))}>
@@ -299,7 +331,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               )}
             </div>
           </form>
-          {ai.status && <p className={`small pre ${ai.blocked ? 'notice' : ''} ${ai.busy ? 'loading' : ''}`}>{ai.status}</p>}
+          {ai.status && <p key={ai.status} className={`small pre ${ai.blocked ? 'notice warn-box' : ''} ${ai.busy ? 'loading' : ''}`}>{ai.status}</p>}
           {ai.blocked && (
             <div className="form-actions">
               {ai.blocked === 'nokey' && !IS_PREVIEW && (
@@ -312,6 +344,11 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 >
                   <Icon name="settings" size={16} /> 설정 열기
                 </button>
+              )}
+              {ai.query.trim() && (
+                <a className="btn ghost" href={browserSearchUrl(ai.query, ai.homepage)} target="_blank" rel="noreferrer">
+                  <Icon name="search" size={16} /> 브라우저에서 검색
+                </a>
               )}
               <button
                 className="btn primary"

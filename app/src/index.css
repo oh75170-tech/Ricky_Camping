@@ -282,3 +282,8 @@ input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text
 .install-item { display: flex; flex-direction: column; gap: 4px; padding: 14px; border: 1px solid var(--line); border-radius: 14px; background: #fff; color: var(--ink); text-decoration: none; }
 .install-item span { font-size: 13px; color: var(--muted); }
 a.install-item:active { background: var(--soft); }
+
+.warn-box { border: 1px solid var(--ink); animation: pop .35s ease; }
+@keyframes pop { 0% { transform: scale(.98); opacity: .4; } 100% { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .warn-box { animation: none; } }
+a.btn { text-decoration: none; }
