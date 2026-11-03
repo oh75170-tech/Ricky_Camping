@@ -2,7 +2,7 @@ name: Deploy app to GitHub Pages
 
 on:
   push:
-    branches: [main]
+    branches: [main, claude/camping-layout-simulator-k1hxhv]
     paths: ['app/**', '.github/workflows/pages.yml']
   workflow_dispatch:
 
@@ -23,6 +23,10 @@ jobs:
         working-directory: app
     steps:
       - uses: actions/checkout@v4
+      # 저장소에서 Pages가 꺼져 있으면 GitHub Actions 방식으로 켭니다
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
