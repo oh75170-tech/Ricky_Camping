@@ -1,3 +1,6 @@
+import { Capacitor } from '@capacitor/core';
+import { Filesystem, Directory } from '@capacitor/filesystem';
+import { Share } from '@capacitor/share';
 import { allGear, getState } from './store';
 
 /** 배치도 캔버스 + 하단 장비 제원 목록을 합쳐 한 장의 이미지로 */
@@ -58,7 +61,20 @@ export function canvasToBlob(c: HTMLCanvasElement): Promise<Blob> {
   return new Promise((res, rej) => c.toBlob((b) => (b ? res(b) : rej(new Error('이미지 생성 실패'))), 'image/png'));
 }
 
+/** 안드로이드 앱(APK)으로 실행 중인지 */
+export const isNativeApp = () => Capacitor.isNativePlatform();
+
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result).split(',')[1] ?? '');
+    r.onerror = () => rej(r.error);
+    r.readAsDataURL(blob);
+  });
+}
+
 export function canShareFiles(): boolean {
+  if (isNativeApp()) return true;
   try {
     const f = new File([new Blob()], 'a.png', { type: 'image/png' });
     return !!navigator.canShare && navigator.canShare({ files: [f] });
@@ -69,6 +85,18 @@ export function canShareFiles(): boolean {
 
 /** 시스템 공유 시트 (iOS/Android 에서 인스타그램·카카오톡 등 선택 가능) */
 export async function shareImage(blob: Blob, title: string): Promise<'shared' | 'unsupported' | 'cancelled'> {
+  if (isNativeApp()) {
+    // 앱: 캐시에 저장 후 안드로이드 공유 시트(인스타그램·카카오톡 등)
+    const data = await blobToBase64(blob);
+    const { uri } = await Filesystem.writeFile({ path: `campcanvas-${Date.now()}.png`, data, directory: Directory.Cache });
+    try {
+      await Share.share({ title, text: `${title} - 캠핑 배치도`, files: [uri], dialogTitle: '배치도 공유' });
+      return 'shared';
+    } catch (e) {
+      if (/cancel/i.test(String((e as Error).message ?? e))) return 'cancelled';
+      throw e;
+    }
+  }
   const file = new File([blob], `camping-layout-${Date.now()}.png`, { type: 'image/png' });
   if (!navigator.canShare || !navigator.canShare({ files: [file] })) return 'unsupported';
   try {
@@ -80,7 +108,18 @@ export async function shareImage(blob: Blob, title: string): Promise<'shared' | 
   }
 }
 
-export function downloadBlob(blob: Blob, name = `camping-layout-${Date.now()}.png`) {
+/** 이미지 저장. 앱에서는 기기의 Pictures/CampCanvas 폴더에 저장하고 위치를 돌려줌 */
+export async function downloadBlob(blob: Blob, name = `camping-layout-${Date.now()}.png`): Promise<string | null> {
+  if (isNativeApp()) {
+    const data = await blobToBase64(blob);
+    try {
+      await Filesystem.writeFile({ path: `Pictures/CampCanvas/${name}`, data, directory: Directory.ExternalStorage, recursive: true });
+      return '내 파일 > Pictures > CampCanvas';
+    } catch {
+      await Filesystem.writeFile({ path: `CampCanvas/${name}`, data, directory: Directory.Documents, recursive: true });
+      return '내 파일 > Documents > CampCanvas';
+    }
+  }
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -89,4 +128,5 @@ export function downloadBlob(blob: Blob, name = `camping-layout-${Date.now()}.pn
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return null;
 }

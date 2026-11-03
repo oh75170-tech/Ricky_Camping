@@ -1,0 +1,66 @@
+name: Build Android app (APK)
+
+on:
+  push:
+    branches: [main, claude/camping-layout-simulator-k1hxhv]
+    paths: ['app/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Install & build web app
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE }}
+      - name: Create Android project
+        run: |
+          npx cap add android
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+          cp -r android-res/mipmap-* android/app/src/main/res/
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          npx cap sync android
+      - name: Build APK
+        run: |
+          # 고정 서명키: 새 버전을 기존 앱 위에 바로 업데이트 설치할 수 있도록
+          mkdir -p ~/.android && cp android-res/debug.keystore ~/.android/debug.keystore
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../CampCanvas.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CampCanvas-apk
+          path: app/CampCanvas.apk
+      - name: Publish release (android-latest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete android-latest --yes --cleanup-tag || true
+          gh release create android-latest CampCanvas.apk \
+            --title "CampCanvas 안드로이드 앱 (최신 빌드 #${{ github.run_number }})" \
+            --notes "갤럭시탭/안드로이드용 설치 파일입니다. 휴대기기에서 CampCanvas.apk 를 내려받아 설치하세요. (빌드: ${{ github.sha }})" \
+            --target ${{ github.sha }}

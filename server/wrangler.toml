@@ -4,7 +4,7 @@ compatibility_date = "2025-09-01"
 
 [vars]
 # GitHub Pages 주소 (쉼표로 여러 개). 개발용 localhost 포함
-ALLOWED_ORIGINS = "https://oh75170-tech.github.io,http://localhost:5173,http://localhost:4173"
+ALLOWED_ORIGINS = "https://oh75170-tech.github.io,https://localhost,http://localhost:5173,http://localhost:4173"
 
 [[durable_objects.bindings]]
 name = "ROOMS"

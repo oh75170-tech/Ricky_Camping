@@ -40,7 +40,7 @@ export function SharePanel({ getMap }: { getMap: () => Promise<HTMLCanvasElement
       return 'cancelled' as const;
     });
     if (r === 'unsupported') {
-      downloadBlob(p.blob);
+      await downloadBlob(p.blob);
       setMsg(`이 브라우저는 바로 공유를 지원하지 않아 이미지를 저장했어요. 사진 앱에서 ${target}(으)로 공유해주세요.`);
     }
   };
@@ -68,8 +68,12 @@ export function SharePanel({ getMap }: { getMap: () => Promise<HTMLCanvasElement
           disabled={busy}
           onClick={async () => {
             const p = preview ?? (await build());
-            downloadBlob(p.blob);
-            setMsg('이미지를 저장했어요. (iPhone: 공유 버튼 → "이미지 저장"으로도 사진앱에 저장 가능)');
+            try {
+              const where = await downloadBlob(p.blob);
+              setMsg(where ? `이미지를 저장했어요: ${where} 폴더` : '이미지를 저장했어요. (iPhone: 공유 버튼 → "이미지 저장"으로도 사진앱에 저장 가능)');
+            } catch (e) {
+              setMsg(`저장 실패: ${(e as Error).message}. "더보기"로 공유해서 저장해주세요.`);
+            }
           }}
         >
           <Icon name="download" size={24} />사진 저장
