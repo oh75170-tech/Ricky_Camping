@@ -510,7 +510,7 @@ export const BUILTIN_GEAR: Gear[] = [
     shape: 'dome',
     frame: 'dome-x',
     verified: true,
-    note: '공식 스펙(사용자 제공): 전면 하단 600·상단 300, 측면 하단 450·상단 200, 높이 250, 6인, 입구 2개',
+    note: '공식 스펙(사용자 제공·확인): 전면 하단 600·상단 300, 측면 하단 450·상단 200, 높이 250, 6인, 입구 2개',
   },
   {
     id: 'hx-chairzero-l',
@@ -565,7 +565,7 @@ export const BUILTIN_GEAR: Gear[] = [
     frame: 'air',
     inner: { l: 205, w: 300, offset: -187 },
     verified: true,
-    note: '사용자 제공 도면: 650×330×225, 침실 205×300(150+150), 침실구역 240·거실 400, 거실 높이 207',
+    note: '사용자 제공 도면·확인: 650×330×225, 침실 205×300(150+150), 침실구역 240·거실 400, 거실 높이 207',
     source: 'https://www.nomad.nl/en/dogon-4-2-air-family-tent-twill',
   },
   {
@@ -582,7 +582,7 @@ export const BUILTIN_GEAR: Gear[] = [
     inner: { l: 290, w: 220, offset: 0 },
     ground: { l: 300, w: 230, offset: 0 },
     verified: true,
-    note: '사용자 제공 상세페이지: 전체 420(본체 300)×230×190, 이너(배스텁) 290×220, 그라운드시트 300×230. 저해상도 이미지라 숫자 재확인 권장',
+    note: '사용자 제공 상세페이지·확인: 전체 420(본체 300)×230×190, 이너(배스텁) 290×220, 그라운드시트 300×230',
   },
   {
     id: 'kl-aerolight-shelter',
@@ -598,7 +598,7 @@ export const BUILTIN_GEAR: Gear[] = [
     frame: 'arches',
     frameCount: 2,
     verified: true,
-    note: '사용자 제공 도면: 430(140+150+140)×300, 최고 185·측벽 118, 입구 150. 육각형 평면, 코트 2개 배치 가능',
+    note: '사용자 제공 도면·확인: 430(140+150+140)×300, 최고 185·측벽 118, 입구 150. 육각형 평면, 코트 2개 배치 가능',
   },
   {
     id: 'bd-mission3p',
