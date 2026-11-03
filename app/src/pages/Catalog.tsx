@@ -37,19 +37,9 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
 
   const runAi = async (query: string, verifyOf?: Gear) => {
     abortRef.current?.abort();
-    if (IS_PREVIEW) {
-      setAi({
-        query,
-        verifyOf,
-        items: [],
-        blocked: 'preview',
-        status: '지금은 태블릿 미리보기라 외부 통신이 막혀 있어 AI 검색을 할 수 없어요.\n정식 배포(서버 연결) 후에 사용할 수 있습니다. 지금은 "직접 입력"으로 추가해주세요.',
-      });
-      return;
-    }
     const ac = new AbortController();
     abortRef.current = ac;
-    setAi({ query, status: '웹에서 공식 제원 검색 중… (30초~1분 정도 걸릴 수 있어요)', items: [], verifyOf });
+    setAi({ query, status: IS_PREVIEW ? 'Claude에게 제원을 묻는 중… (처음 한 번은 AI 사용 허용 창이 떠요. 30초~1분 걸릴 수 있어요)' : '웹에서 공식 제원 검색 중… (30초~1분 정도 걸릴 수 있어요)', items: [], verifyOf });
     try {
       const fallbackBrand = verifyOf?.brand ?? query.split(/\s+/)[0];
       const res = await lookupGear(query, undefined, ac.signal);
@@ -58,7 +48,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         query,
         verifyOf,
         items,
-        status: items.length ? `${items.length}개 장비를 찾았어요. 확인 후 추가해주세요.` : `제원을 찾지 못했어요.\n${res.text.slice(0, 400)}`,
+        status: items.length ? `${items.length}개 장비를 찾았어요. 확인 후 추가해주세요.${IS_PREVIEW ? '\n(웹 검색 없이 Claude가 아는 정보라 모두 "추정"으로 저장됩니다)' : ''}` : `제원을 찾지 못했어요.\n${res.text.slice(0, 400)}`,
       });
     } catch (e) {
       if (e instanceof NoKeyError) {
@@ -222,7 +212,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
           <p className={`small pre ${ai.blocked ? 'notice' : ''}`}>{ai.status}</p>
           {ai.blocked && (
             <div className="form-actions">
-              {ai.blocked === 'nokey' && (
+              {ai.blocked === 'nokey' && !IS_PREVIEW && (
                 <button
                   className="btn ghost"
                   onClick={() => {

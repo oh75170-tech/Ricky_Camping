@@ -83,7 +83,7 @@ export function ChatPanel({ onOpenSettings, onPlace }: { onOpenSettings: () => v
 
   return (
     <div className="chat">
-      {IS_PREVIEW && <p className="notice small" style={{ margin: 12 }}>태블릿 미리보기에서는 외부 통신이 막혀 AI 채팅을 쓸 수 없어요. 정식 배포(서버 연결) 후 사용할 수 있습니다.</p>}
+      {IS_PREVIEW && <p className="notice small" style={{ margin: 12 }}>미리보기에서는 Claude가 웹 검색 없이 알고 있는 정보로 답해요. 처음 한 번은 AI 사용 허용 창이 뜹니다.</p>}
       <div className="chat-log">
         {msgs.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
@@ -117,7 +117,7 @@ export function ChatPanel({ onOpenSettings, onPlace }: { onOpenSettings: () => v
       {err && (
         <div className="chat-err">
           {err}{' '}
-          {err.includes('설정') && (
+          {err.includes('설정') && !IS_PREVIEW && (
             <button className="link" onClick={onOpenSettings}>
               설정 열기
             </button>

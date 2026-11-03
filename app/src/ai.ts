@@ -3,6 +3,7 @@ import type { BetaMessageParam, BetaContentBlock } from '@anthropic-ai/sdk/resou
 import { CATEGORIES, type Category, type Gear } from './types';
 import { getState } from './store';
 import { serverUrl } from './config';
+import { IS_PREVIEW } from './env';
 
 export const MODELS = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (기본·정확)' },
@@ -47,12 +48,78 @@ export interface ChatResult {
 /**
  * 스트리밍 대화. web_search 서버툴이 pause_turn 으로 멈추면 자동으로 이어서 요청.
  */
+
+// ───────── 미리보기(Claude 아티팩트) 전용: 페이지 안에서 Claude에게 직접 묻기 ─────────
+type SampleFn = (
+  input: string | { role: 'user' | 'assistant'; content: string }[],
+  opts?: { onText?: (u: { text: string }) => void; signal?: AbortSignal; cache?: boolean; modelTier?: string },
+) => Promise<{ text: string; truncated: boolean }>;
+
+let samplePromise: Promise<SampleFn | null> | null = null;
+function getSample(): Promise<SampleFn | null> {
+  const c = (window as unknown as { claude?: { use?: (n: string) => Promise<unknown> } }).claude;
+  if (!c?.use) return Promise.resolve(null);
+  samplePromise ??= c.use('sample') as Promise<SampleFn | null>;
+  return samplePromise;
+}
+
+const SAMPLE_ERRORS: Record<string, string> = {
+  not_granted: 'AI 사용을 허용하지 않아 실행할 수 없어요. 페이지를 새로 열고 허용을 눌러주세요.',
+  sampling_disabled: '이 계정에서는 AI를 사용할 수 없어요.',
+  rate_limited: '요청이 너무 많거나 사용 한도에 도달했어요. 잠시 후 다시 시도해주세요.',
+  session_expired: 'Claude 로그인이 만료됐어요. 다시 로그인해주세요.',
+  refused: '이 요청에는 답할 수 없어요. 질문을 바꿔서 시도해주세요.',
+  prompt_too_large: '대화가 너무 길어요. 새로 시작해주세요.',
+};
+
+function textOf(content: BetaMessageParam['content']): string {
+  if (!content) return '';
+  if (typeof content === 'string') return content;
+  return content
+    .map((b) => (b.type === 'text' ? b.text : ''))
+    .filter(Boolean)
+    .join('\n');
+}
+
+async function chatViaSample(
+  history: BetaMessageParam[],
+  system: string,
+  onText: (full: string) => void,
+  signal?: AbortSignal,
+): Promise<ChatResult> {
+  const sample = await getSample();
+  if (!sample) throw new NoKeyError('이 화면에서는 AI를 쓸 수 없어요. Claude 앱이나 claude.ai에서 열어주세요.');
+  const rules =
+    system +
+    '\n\n[이 화면에서는 웹 검색 도구가 없습니다. 알고 있는 정보로 답하고, 확실하지 않은 수치는 반드시 "추정"이라고 밝히세요.]';
+  const turns = [
+    { role: 'user' as const, content: rules },
+    ...history
+      .filter((m) => m.role === 'user' || m.role === 'assistant')
+      .map((m) => ({ role: m.role as 'user' | 'assistant', content: textOf(m.content) }))
+      .filter((t) => t.content.trim()),
+  ];
+  try {
+    const { text } = await sample(turns, { cache: false, signal, onText: ({ text }) => onText(text) });
+    return { history: [...history, { role: 'assistant', content: text }], text };
+  } catch (e) {
+    const err = e as { code?: string; message?: string; text?: string };
+    if (err.code === 'cancelled') {
+      const a = new Error('중단했습니다.');
+      a.name = 'AbortError';
+      throw a;
+    }
+    throw new Error(SAMPLE_ERRORS[err.code ?? ''] ?? `AI 응답 오류 (${err.code ?? 'unknown'}). 잠시 후 다시 시도해주세요.`);
+  }
+}
+
 export async function chat(
   history: BetaMessageParam[],
   system: string,
   onText: (full: string) => void,
   signal?: AbortSignal,
 ): Promise<ChatResult> {
+  if (IS_PREVIEW) return chatViaSample(history, system, onText, signal);
   const c = client();
   const model = getState().settings.model;
   let msgs = [...history];
@@ -88,7 +155,7 @@ export async function chat(
 
 const CAT_IDS = CATEGORIES.map((c) => c.id).join('|');
 
-const LOOKUP_SYSTEM = `당신은 캠핑 장비 제원 조사원입니다. web_search로 공식 홈페이지(우선)와 신뢰할 수 있는 판매처를 찾아 제원을 확인하세요.
+const LOOKUP_SYSTEM = `당신은 캠핑 장비 제원 조사원입니다. web_search가 있으면 공식 홈페이지(우선)와 신뢰할 수 있는 판매처를 찾아 제원을 확인하세요.
 규칙:
 - 단위는 cm. 텐트/타프는 설치 시 외형(플라이) 길이(l, 긴 쪽)·너비(w)·최고 높이(h).
 - 가구는 사용 시 외형 치수.
@@ -145,7 +212,11 @@ export async function lookupGear(query: string, onText?: (t: string) => void, si
     onText ?? (() => {}),
     signal,
   );
-  return { text: res.text, items: parseGearJson(res.text) };
+  let items = parseGearJson(res.text);
+  // 미리보기에서는 웹 검색 없이 Claude 지식으로 답하므로 항상 '추정'으로 표시
+  if (IS_PREVIEW)
+    items = items.map((g) => ({ ...g, verified: false, note: `AI 추정(웹 검색 없음)${g.note ? ` · ${g.note}` : ''} – 공식 제원 확인 필요` }));
+  return { text: res.text, items };
 }
 
 export function plannerSystemPrompt(context: string) {
