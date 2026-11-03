@@ -1,0 +1,69 @@
+name: Deploy app to GitHub Pages (web + Android APK)
+
+# 웹앱(아이폰·PC: 홈 화면에 추가)과 안드로이드 설치 파일(CampCanvas.apk)을
+# 같은 GitHub Pages 주소로 함께 배포합니다.
+#   웹:  https://oh75170-tech.github.io/Ricky_Camping/
+#   APK: https://oh75170-tech.github.io/Ricky_Camping/CampCanvas.apk
+on:
+  push:
+    branches: [main]
+    paths: ['app/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - name: Build web app
+        run: |
+          npm ci
+          npm run build
+        env:
+          VITE_API_BASE: ${{ vars.API_BASE }}
+      - name: Build Android APK
+        run: |
+          npx cap add android
+          rm -rf android/app/src/main/res/mipmap-anydpi-v26
+          cp -r android-res/mipmap-* android/app/src/main/res/
+          sed -i "s/versionCode 1/versionCode ${{ github.run_number }}/; s/versionName \"1.0\"/versionName \"1.0.${{ github.run_number }}\"/" android/app/build.gradle
+          npx cap sync android
+          mkdir -p ~/.android && cp android-res/debug.keystore ~/.android/debug.keystore
+          (cd android && chmod +x gradlew && ./gradlew assembleDebug --no-daemon)
+          cp android/app/build/outputs/apk/debug/app-debug.apk dist/CampCanvas.apk
+          echo "{\"build\": ${{ github.run_number }}, \"sha\": \"${{ github.sha }}\"}" > dist/version.json
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: app/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

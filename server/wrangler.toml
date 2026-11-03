@@ -1,0 +1,19 @@
+name = "ricky-camping-server"
+main = "src/index.ts"
+compatibility_date = "2025-09-01"
+
+[vars]
+# GitHub Pages 주소 (쉼표로 여러 개). 개발용 localhost 포함
+ALLOWED_ORIGINS = "https://oh75170-tech.github.io,https://localhost,http://localhost:5173,http://localhost:4173"
+
+[[durable_objects.bindings]]
+name = "ROOMS"
+class_name = "Room"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Room"]
+
+# 비밀값 (wrangler secret put 으로 설정, 파일에 쓰지 마세요)
+#   ANTHROPIC_API_KEY : Anthropic API 키
+#   APP_PASSCODE      : 앱에서 AI를 쓰기 위한 접속 코드 (가족/친구에게만 공유)
