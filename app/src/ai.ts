@@ -31,6 +31,13 @@ function client() {
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 }
 
+/** AI를 쓸 준비가 됐는지 (서버+접속코드, 또는 개인 키) */
+export function aiReady(): boolean {
+  if (IS_PREVIEW) return true;
+  const { aiMode, apiKey, passcode } = getState().settings;
+  return aiMode === 'server' ? !!(serverUrl() && passcode) : !!apiKey;
+}
+
 const WEB_SEARCH = { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 5 };
 /** 사용자가 알려준 홈페이지를 직접 열어보는 도구 (대화에 나온 URL만 열 수 있음) */
 const WEB_FETCH = { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: 6 };
