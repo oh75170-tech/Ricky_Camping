@@ -21,13 +21,13 @@ export function composeImage(map: HTMLCanvasElement, title: string): HTMLCanvasE
   c.width = W;
   c.height = H;
   const ctx = c.getContext('2d')!;
-  ctx.fillStyle = '#fbfaf6';
+  ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = '#1f3d2b';
+  ctx.fillStyle = '#111111';
   ctx.font = 'bold 44px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
   ctx.fillText(title, pad, pad + 40);
-  ctx.fillStyle = '#6b7a68';
+  ctx.fillStyle = '#8a8a8a';
   ctx.font = '26px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
   ctx.fillText(`사이트 ${s.campsite.w}m × ${s.campsite.h}m · 격자 1칸 = 1m · Ricky Camping`, pad, pad + 84);
 
@@ -35,14 +35,14 @@ export function composeImage(map: HTMLCanvasElement, title: string): HTMLCanvasE
 
   if (rows.length) {
     let y = headerH + pad + mapH + 50;
-    ctx.fillStyle = '#1f3d2b';
+    ctx.fillStyle = '#111111';
     ctx.font = 'bold 30px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
     ctx.fillText('장비 제원 (길이 × 너비 × 높이 / 재질)', pad, y);
     y += 20;
     ctx.font = '24px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
     for (const { g, site } of rows) {
       y += rowH;
-      ctx.fillStyle = site?.color ?? '#2f7d4f';
+      ctx.fillStyle = site?.color ?? '#262626';
       ctx.beginPath();
       ctx.arc(pad + 10, y - 9, 9, 0, Math.PI * 2);
       ctx.fill();

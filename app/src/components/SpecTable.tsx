@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { allGear, useStore } from '../store';
 import { CATEGORIES } from '../types';
+import { Icon } from './Icon';
 
 const fmt = (cm: number) => (cm >= 100 ? `${(cm / 100).toFixed(2)}m` : `${cm}cm`);
 
@@ -39,7 +40,7 @@ export function SpecTable({ selectedId, onSelect }: { selectedId: string | null;
                   {site?.name}
                 </td>
                 <td>
-                  {cat?.emoji} <b>{g.name}</b>
+                  <Icon name={cat?.id ?? 'etc'} size={14} /> <b>{g.name}</b>
                   <div className="muted small">
                     {g.brand}
                     {!g.verified && <span className="badge warn">추정</span>}

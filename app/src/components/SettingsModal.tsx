@@ -5,22 +5,46 @@ import { Modal } from './Modal';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
-  const [key, setKey] = useState(settings.apiKey);
-  const [model, setModel] = useState(settings.model);
+  const [d, setD] = useState(settings);
+  const envServer = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+  const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }));
+
   return (
     <Modal title="설정" onClose={onClose}>
       <div className="gear-form">
         <label>
-          Anthropic API 키 (AI 채팅·제원 검색용)
-          <input type="password" value={key} onChange={(e) => setKey(e.target.value)} placeholder="sk-ant-..." autoComplete="off" />
+          서버 주소 (AI·공동 편집)
+          <input value={d.serverUrl} onChange={(e) => set('serverUrl', e.target.value)} placeholder={envServer || 'https://ricky-camping-server.xxx.workers.dev'} />
         </label>
+        {envServer && !d.serverUrl && <p className="muted small">기본 서버: {envServer}</p>}
+
+        <div className="seg">
+          <button type="button" className={d.aiMode === 'server' ? 'on' : ''} onClick={() => set('aiMode', 'server')}>
+            서버 경유 (권장)
+          </button>
+          <button type="button" className={d.aiMode === 'direct' ? 'on' : ''} onClick={() => set('aiMode', 'direct')}>
+            개인 API 키
+          </button>
+        </div>
+        {d.aiMode === 'server' ? (
+          <label>
+            AI 접속 코드
+            <input type="password" value={d.passcode} onChange={(e) => set('passcode', e.target.value)} placeholder="관리자에게 받은 코드" autoComplete="off" />
+          </label>
+        ) : (
+          <label>
+            Anthropic API 키
+            <input type="password" value={d.apiKey} onChange={(e) => set('apiKey', e.target.value)} placeholder="sk-ant-..." autoComplete="off" />
+          </label>
+        )}
         <p className="muted small">
-          키는 이 기기의 브라우저에만 저장되고, AI 요청 시 Anthropic API로 직접 전송됩니다. 공용 기기에서는 사용 후 지워주세요.
-          키는 console.anthropic.com 에서 발급할 수 있습니다.
+          {d.aiMode === 'server'
+            ? '실제 API 키는 서버에만 있고, 이 기기에는 접속 코드만 저장됩니다.'
+            : '키가 이 기기 브라우저에 저장되어 Anthropic으로 직접 전송됩니다. 본인 기기에서만 사용하세요.'}
         </p>
         <label>
           AI 모델
-          <select value={model} onChange={(e) => setModel(e.target.value)}>
+          <select value={d.model} onChange={(e) => set('model', e.target.value)}>
             {MODELS.map((m) => (
               <option key={m.id} value={m.id}>
                 {m.label}
@@ -30,18 +54,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         </label>
         <div className="form-actions">
           <button
+            type="button"
             className="btn ghost"
             onClick={() => {
-              setKey('');
-              actions.setSettings({ apiKey: '' });
+              const cleared = { ...d, apiKey: '', passcode: '' };
+              setD(cleared);
+              actions.setSettings(cleared);
             }}
           >
-            키 삭제
+            키·코드 삭제
           </button>
           <button
+            type="button"
             className="btn primary"
             onClick={() => {
-              actions.setSettings({ apiKey: key.trim(), model });
+              actions.setSettings({ ...d, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim() });
               onClose();
             }}
           >

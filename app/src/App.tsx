@@ -2,11 +2,19 @@ import { useEffect, useState } from 'react';
 import { Home } from './pages/Home';
 import { Catalog } from './pages/Catalog';
 import { Planner } from './pages/Planner';
+import { joinRoom } from './sync';
+import { getState } from './store';
 
 type Page = 'home' | 'catalog' | 'planner';
 
 const fromHash = (): Page => {
-  const h = location.hash.replace('#/', '');
+  const [h, q] = location.hash.replace('#/', '').split('?');
+  const room = new URLSearchParams(q ?? '').get('room');
+  if (room && /^[a-z0-9]{8,32}$/.test(room)) {
+    const hasLocal = getState().placements.length > 0;
+    if (!hasLocal || confirm('공동 편집 방에 참여할까요?\n현재 기기의 배치가 방의 배치로 바뀝니다.')) joinRoom(room);
+    history.replaceState(null, '', '#/planner');
+  }
   return h === 'catalog' || h === 'planner' ? h : 'home';
 };
 

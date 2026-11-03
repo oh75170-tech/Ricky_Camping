@@ -6,13 +6,13 @@ export const PX_PER_M = 60; // 기본 1m = 60px
 const FURNITURE = new Set(['table', 'chair', 'mat', 'cot', 'heater', 'fridge', 'etc']);
 
 const CAT_FILL: Record<string, string> = {
-  table: '#a9783f',
-  chair: '#4b6a88',
-  mat: '#7d8f5a',
-  cot: '#5c6b73',
-  heater: '#d9534f',
-  fridge: '#3c9fc9',
-  etc: '#8a7a6a',
+  table: '#6e6e6e',
+  chair: '#3a3a3a',
+  mat: '#9a9a9a',
+  cot: '#555555',
+  heater: '#1a1a1a',
+  fridge: '#808080',
+  etc: '#8a8a8a',
 };
 
 function hexPoints(L: number, W: number) {
@@ -45,11 +45,11 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
   const isTarp = gear.category === 'tarp';
   const shape = gear.shape ?? (isTarp ? 'tarp-hexa' : 'rect');
   const fs = Math.max(8, 12 / scale);
-  const stroke = selected ? '#ff9f1c' : color;
+  const stroke = selected ? '#000' : color;
   const sw = (selected ? 3 : 1.5) / scale;
 
   const flyOpacity = isTarp ? layer.tarp : layer.fly;
-  const flyFill = isFurniture ? CAT_FILL[gear.category] ?? '#888' : isTarp ? '#7a8f6a' : color;
+  const flyFill = isFurniture ? CAT_FILL[gear.category] ?? '#888' : isTarp ? '#9e9e9e' : color;
 
   const outline = () => {
     const common = {
@@ -200,8 +200,8 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
         const lines = [];
         for (let i = 1; i <= 3; i++) {
           const x = -L / 2 + (L * i) / 4;
-          lines.push(<Line key={`a${i}`} points={[x - L * 0.12, -W / 2, x + L * 0.12, W / 2]} {...props} stroke="#2a6fdb" />);
-          lines.push(<Line key={`b${i}`} points={[x + L * 0.12, -W / 2, x - L * 0.12, W / 2]} {...props} stroke="#2a6fdb" />);
+          lines.push(<Line key={`a${i}`} points={[x - L * 0.12, -W / 2, x + L * 0.12, W / 2]} {...props} stroke="#444" />);
+          lines.push(<Line key={`b${i}`} points={[x + L * 0.12, -W / 2, x - L * 0.12, W / 2]} {...props} stroke="#444" />);
         }
         return <>{lines}</>;
       }
@@ -248,8 +248,8 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
   return (
     <Group>
       {/* 레이어 순서: 그라운드시트 → 이너 → 플라이(투명) → 프레임 */}
-      {gear.ground && sub(gear.ground, '#6b5b45', layer.ground)}
-      {gear.inner && sub(gear.inner, '#f3e3b5', layer.inner, true)}
+      {gear.ground && sub(gear.ground, '#8c8c8c', layer.ground)}
+      {gear.inner && sub(gear.inner, '#e4e4e4', layer.inner, true)}
       {outline()}
       {frame()}
       {dims()}

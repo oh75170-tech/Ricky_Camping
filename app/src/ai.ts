@@ -2,6 +2,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import type { BetaMessageParam, BetaContentBlock } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { CATEGORIES, type Category, type Gear } from './types';
 import { getState } from './store';
+import { serverUrl } from './config';
 
 export const MODELS = [
   { id: 'claude-opus-5-5', label: 'Claude Opus 5.5 (기본·정확)' },
@@ -10,15 +11,22 @@ export const MODELS = [
 ];
 
 export class NoKeyError extends Error {
-  constructor() {
-    super('설정에서 Anthropic API 키를 먼저 입력해주세요.');
+  constructor(msg = '설정에서 AI 접속 코드(또는 API 키)를 먼저 입력해주세요.') {
+    super(msg);
   }
 }
 
 function client() {
-  const { apiKey } = getState().settings;
+  const { aiMode, apiKey, passcode } = getState().settings;
+  if (aiMode === 'server') {
+    const base = serverUrl();
+    if (!base) throw new NoKeyError('설정에서 서버 주소를 입력해주세요.');
+    if (!passcode) throw new NoKeyError();
+    // 서버가 실제 API 키를 붙여 Anthropic으로 전달합니다. 브라우저에는 접속 코드만 저장됩니다.
+    return new Anthropic({ apiKey: passcode, baseURL: `${base}/anthropic`, dangerouslyAllowBrowser: true });
+  }
   if (!apiKey) throw new NoKeyError();
-  // 개인용 앱: 키는 사용자 기기(localStorage)에만 저장되어 브라우저에서 직접 호출합니다.
+  // 개인 키 직접 모드: 키는 이 기기(localStorage)에만 저장되어 브라우저에서 직접 호출합니다.
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
 }
 

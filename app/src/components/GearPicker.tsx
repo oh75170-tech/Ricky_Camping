@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { allGear, useStore } from '../store';
 import { CATEGORIES, type Category, type Gear } from '../types';
 import { dimText } from './GearCard';
+import { Icon } from './Icon';
 
 export function GearPicker({ onPick }: { onPick: (g: Gear) => void }) {
   const gear = useStore(allGear);
@@ -38,7 +39,7 @@ export function GearPicker({ onPick }: { onPick: (g: Gear) => void }) {
         </button>
         {CATEGORIES.map((c) => (
           <button key={c.id} className={`chip ${cat === c.id ? 'on' : ''}`} onClick={() => setCat(c.id)}>
-            {c.emoji} {c.label}
+            <Icon name={c.id} size={15} /> {c.label}
           </button>
         ))}
       </div>
@@ -51,7 +52,7 @@ export function GearPicker({ onPick }: { onPick: (g: Gear) => void }) {
         {list.map((g) => (
           <li key={g.id}>
             <button onClick={() => onPick(g)}>
-              <span className="pick-emoji">{CATEGORIES.find((c) => c.id === g.category)?.emoji}</span>
+              <span className="pick-emoji"><Icon name={g.category} size={22} /></span>
               <span className="pick-main">
                 <b>{g.name}</b>
                 <span className="muted small">
@@ -59,7 +60,7 @@ export function GearPicker({ onPick }: { onPick: (g: Gear) => void }) {
                   {owned.includes(g.id) ? ' · 보유' : wish.includes(g.id) ? ' · 위시' : ''}
                 </span>
               </span>
-              <span className="pick-add">＋</span>
+              <span className="pick-add"><Icon name="plus" /></span>
             </button>
           </li>
         ))}

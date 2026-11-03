@@ -1,5 +1,6 @@
 import { actions, useStore } from '../store';
 import type { Gear } from '../types';
+import { Icon } from './Icon';
 
 export function dimText(g: Gear) {
   return `${g.l} × ${g.w}${g.h ? ` × ${g.h}` : ''} cm`;
@@ -31,26 +32,26 @@ export function GearCard({
         {gear.verified ? <span className="badge ok">확인됨</span> : <span className="badge warn">추정</span>}
       </div>
       <div className="gear-dims">
-        <span>📏 {dimText(gear)}</span>
-        {gear.material && <span>🧵 {gear.material}</span>}
-        {gear.weight && <span>⚖️ {gear.weight}</span>}
+        <span><Icon name="ruler" size={14} /> {dimText(gear)}</span>
+        {gear.material && <span className="muted">{gear.material}</span>}
+        {gear.weight && <span className="muted">{gear.weight}</span>}
       </div>
       {gear.note && <div className="muted small note">{gear.note}</div>}
       <div className="gear-actions">
         <button className={`chip ${owned ? 'on' : ''}`} onClick={() => actions.toggleOwned(gear.id)}>
-          {owned ? '✔ 보유' : '+ 보유'}
+          <Icon name={owned ? 'check' : 'plus'} size={14} /> 보유
         </button>
         <button className={`chip ${wish ? 'on wish' : ''}`} onClick={() => actions.toggleWish(gear.id)}>
-          {wish ? '♥ 위시' : '♡ 위시'}
+          <Icon name="heart" size={14} /> 위시
         </button>
         {onEdit && (
           <button className="chip" onClick={() => onEdit(gear)}>
-            ✏️ 수정
+            <Icon name="edit" size={14} /> 수정
           </button>
         )}
         {onVerify && (
           <button className="chip" onClick={() => onVerify(gear)}>
-            🔎 AI 확인
+            <Icon name="search" size={14} /> AI 확인
           </button>
         )}
         {gear.source && (
@@ -60,7 +61,7 @@ export function GearCard({
         )}
         {onPlace && (
           <button className="chip primary" onClick={() => onPlace(gear)}>
-            배치 →
+            배치
           </button>
         )}
       </div>

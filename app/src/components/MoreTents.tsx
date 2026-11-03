@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { actions, allGear, useStore } from '../store';
 import type { Gear } from '../types';
 import { dimText } from './GearCard';
+import { Icon } from './Icon';
 
 export function MoreTents({
   activeSiteId,
@@ -42,7 +43,7 @@ export function MoreTents({
                   }
                 }}
               >
-                🗑
+                <Icon name="trash" size={18} />
               </button>
             )}
           </li>

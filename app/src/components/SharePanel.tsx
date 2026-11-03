@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { canShareFiles, canvasToBlob, composeImage, downloadBlob, shareImage } from '../share';
+import { Icon } from './Icon';
 
 export function SharePanel({ getMap }: { getMap: () => Promise<HTMLCanvasElement> }) {
   const [title, setTitle] = useState('우리 캠핑 배치도');
@@ -50,10 +51,10 @@ export function SharePanel({ getMap }: { getMap: () => Promise<HTMLCanvasElement
       </label>
       <div className="share-grid">
         <button className="share-btn insta" onClick={() => doShare('인스타그램')} disabled={busy}>
-          <span>📸</span>인스타그램
+          <Icon name="camera" size={24} />인스타그램
         </button>
         <button className="share-btn kakao" onClick={() => doShare('카카오톡')} disabled={busy}>
-          <span>💬</span>카카오톡
+          <Icon name="message" size={24} />카카오톡
         </button>
         <button
           className="share-btn save"
@@ -64,10 +65,10 @@ export function SharePanel({ getMap }: { getMap: () => Promise<HTMLCanvasElement
             setMsg('이미지를 저장했어요. (iPhone: 공유 버튼 → "이미지 저장"으로도 사진앱에 저장 가능)');
           }}
         >
-          <span>💾</span>사진 저장
+          <Icon name="download" size={24} />사진 저장
         </button>
         <button className="share-btn more" onClick={() => doShare('원하는 앱')} disabled={busy}>
-          <span>📤</span>더보기
+          <Icon name="more" size={24} />더보기
         </button>
       </div>
       {!shareable && <p className="muted small">PC 브라우저에서는 "사진 저장" 후 업로드해주세요. 휴대폰에서는 공유 시트에서 인스타그램·카카오톡을 고를 수 있어요.</p>}

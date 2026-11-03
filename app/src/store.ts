@@ -1,9 +1,13 @@
 import { useSyncExternalStore } from 'react';
-import { BUILTIN_GEAR, CORE_BRANDS } from './data/gear';
+import { BUILTIN_GEAR, CORE_BRANDS, SEED_OWNED } from './data/gear';
 import type { Gear, LayerStyle, Placement, Site } from './types';
 
 export interface Settings {
+  /** server: 우리 서버 경유(키는 서버에 보관) / direct: 개인 API 키로 직접 호출 */
+  aiMode: 'server' | 'direct';
   apiKey: string;
+  passcode: string;
+  serverUrl: string;
   model: string;
 }
 
@@ -16,12 +20,14 @@ export interface AppState {
   sites: Site[];
   placements: Placement[];
   layer: LayerStyle;
-  campsite: { w: number; h: number };
+  campsite: { w: number; h: number; name: string; confirmed: boolean };
+  seedVersion: number;
   settings: Settings;
 }
 
 const KEY = 'ricky-camping-v1';
-export const SITE_COLORS = ['#2f7d4f', '#c0582a', '#2d6cb5', '#9a4fb0', '#b58b1d', '#1e8f8f', '#c23b6b'];
+/** 모노톤 사이트 색 (명도 차이로 구분) */
+export const SITE_COLORS = ['#262626', '#8f8f8f', '#555555', '#b8b8b8', '#3d3d3d', '#737373', '#a3a3a3'];
 
 const defaults: AppState = {
   customGear: [],
@@ -29,7 +35,7 @@ const defaults: AppState = {
   owned: [],
   wish: [],
   extraBrands: [],
-  sites: [{ id: 'site-1', name: '우리 사이트', color: SITE_COLORS[0] }],
+  sites: [{ id: 'site-1', name: '우리 사이트', color: '#262626' }],
   placements: [],
   layer: {
     ground: 0.9,
@@ -41,8 +47,9 @@ const defaults: AppState = {
     showDims: true,
     showLabels: true,
   },
-  campsite: { w: 12, h: 10 },
-  settings: { apiKey: '', model: 'claude-opus-5-5' },
+  campsite: { w: 12, h: 10, name: '', confirmed: false },
+  seedVersion: 0,
+  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5' },
 };
 
 function load(): AppState {
@@ -55,13 +62,21 @@ function load(): AppState {
       ...parsed,
       layer: { ...defaults.layer, ...(parsed.layer ?? {}) },
       settings: { ...defaults.settings, ...(parsed.settings ?? {}) },
+      campsite: { ...defaults.campsite, ...(parsed.campsite ?? {}) },
+      // 이전 버전의 컬러 → 모노톤 팔레트로 변환
+      sites: (parsed.sites ?? defaults.sites).map((x, i) => (SITE_COLORS.includes(x.color) ? x : { ...x, color: SITE_COLORS[i % SITE_COLORS.length] })),
     };
   } catch {
     return defaults;
   }
 }
 
-let state: AppState = load();
+function seed(s: AppState): AppState {
+  if (s.seedVersion >= 2) return s;
+  return { ...s, owned: [...new Set([...s.owned, ...SEED_OWNED])], seedVersion: 2 };
+}
+
+let state: AppState = seed(load());
 const listeners = new Set<() => void>();
 
 export function getState() {
@@ -76,6 +91,10 @@ export function setState(updater: (s: AppState) => AppState) {
     /* 저장 불가 환경 (사파리 프라이빗 등) */
   }
   listeners.forEach((l) => l());
+}
+
+export function subscribeStore(l: () => void) {
+  return subscribe(l);
 }
 
 function subscribe(l: () => void) {
@@ -108,6 +127,7 @@ export function gearById(s: AppState, id: string): Gear | undefined {
 
 export function allBrands(s: AppState): string[] {
   const set = new Set<string>([...CORE_BRANDS]);
+  BUILTIN_GEAR.forEach((g) => set.add(g.brand));
   s.extraBrands.forEach((b) => set.add(b));
   s.customGear.forEach((g) => set.add(g.brand));
   return [...set];
@@ -198,8 +218,8 @@ export const actions = {
   setLayer(patch: Partial<LayerStyle>) {
     setState((s) => ({ ...s, layer: { ...s.layer, ...patch } }));
   },
-  setCampsite(w: number, h: number) {
-    setState((s) => ({ ...s, campsite: { w, h } }));
+  setCampsite(w: number, h: number, name?: string) {
+    setState((s) => ({ ...s, campsite: { ...s.campsite, w, h, name: name ?? s.campsite.name, confirmed: true } }));
   },
   setSettings(patch: Partial<Settings>) {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));

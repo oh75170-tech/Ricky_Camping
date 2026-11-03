@@ -7,6 +7,7 @@ import { Modal } from '../components/Modal';
 import { SettingsModal } from '../components/SettingsModal';
 import { lookupGear, normalizeGear, NoKeyError } from '../ai';
 import { CORE_BRANDS } from '../data/gear';
+import { Icon } from '../components/Icon';
 
 type Found = Omit<Gear, 'id'>;
 
@@ -64,14 +65,14 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
     <div className="catalog">
       <header className="topbar">
         <button className="icon-btn" onClick={onBack} aria-label="메인으로">
-          ←
+          <Icon name="back" />
         </button>
         <h1>장비제원</h1>
         <button className="btn small primary" onClick={onPlan}>
-          배치하기 →
+          배치하기
         </button>
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="설정">
-          ⚙️
+          <Icon name="settings" />
         </button>
       </header>
 
@@ -85,14 +86,14 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         />
         {searching && (
           <button className="btn small" onClick={() => runAi(q.trim())}>
-            🔎 AI로 찾아 추가
+            <Icon name="search" size={14} /> AI로 찾아 추가
           </button>
         )}
       </div>
 
       <nav className="brand-tabs">
         <button className={brand === '__mine' && !searching ? 'on' : ''} onClick={() => (setQ(''), setBrand('__mine'))}>
-          ⭐ 내 장비
+          <Icon name="star" size={14} /> 내 장비
         </button>
         {brandTabs.map((b) => (
           <button key={b} className={brand === b && !searching ? 'on' : ''} onClick={() => (setQ(''), setBrand(b))}>
@@ -113,10 +114,10 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             </p>
             <div className="row">
               <button className="btn primary" onClick={() => runAi(`${brand} 캠핑 장비 전체 라인업`)}>
-                🔎 AI로 {brand} 장비 검색
+                <Icon name="search" size={16} /> AI로 {brand} 장비 검색
               </button>
               <button className="btn ghost" onClick={() => setEditing('new')}>
-                ✏️ 직접 입력
+                <Icon name="edit" size={16} /> 직접 입력
               </button>
             </div>
           </div>
@@ -128,7 +129,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
           return (
             <section key={c.id} className="cat-section">
               <h3>
-                {c.emoji} {c.label} <span className="muted small">{items.length}</span>
+                <Icon name={c.id} size={18} /> {c.label} <span className="muted small">{items.length}</span>
               </h3>
               <div className="card-grid">
                 {items.map((g) => (
@@ -142,16 +143,16 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
           <div className="empty-cats">
             {CATEGORIES.filter((c) => !list.some((g) => g.category === c.id)).map((c) => (
               <span key={c.id} className="muted small">
-                {c.emoji} {c.label}: 등록 없음
+                {c.label}: 등록 없음
               </span>
             ))}
             <button className="btn small ghost" onClick={() => runAi(`${brand} ${CATEGORIES.filter((c) => !list.some((g) => g.category === c.id)).map((c) => c.label).join(', ')}`)}>
-              🔎 빈 항목 AI 검색
+              <Icon name="search" size={14} /> 빈 항목 AI 검색
             </button>
           </div>
         )}
         <button className="fab" onClick={() => setEditing('new')} aria-label="장비 직접 추가">
-          ＋
+          <Icon name="plus" size={26} />
         </button>
       </main>
 
@@ -208,9 +209,9 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               </div>
               <div className="gear-dims">
                 <span>
-                  📏 {g.l} × {g.w} × {g.h} cm
+                  <Icon name="ruler" size={14} /> {g.l} × {g.w} × {g.h} cm
                 </span>
-                {g.material && <span>🧵 {g.material}</span>}
+                {g.material && <span className="muted">{g.material}</span>}
               </div>
               {g.note && <div className="muted small note">{g.note}</div>}
               {g.source && (
@@ -235,7 +236,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                     onClick={(e) => {
                       actions.addGear(g);
                       (e.target as HTMLButtonElement).disabled = true;
-                      (e.target as HTMLButtonElement).textContent = '추가됨 ✔';
+                      (e.target as HTMLButtonElement).textContent = '추가됨';
                     }}
                   >
                     DB에 추가

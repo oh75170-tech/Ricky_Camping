@@ -175,7 +175,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
         <Line
           key={`x${x}`}
           points={[x * PX_PER_M, y0 * PX_PER_M, x * PX_PER_M, y1 * PX_PER_M]}
-          stroke={x % 5 === 0 ? '#9fb39a' : '#cfdccb'}
+          stroke={x % 5 === 0 ? '#e2e2e2' : '#f0f0f0'}
           strokeWidth={x % 5 === 0 ? sw * 1.5 : sw}
           listening={false}
         />,
@@ -186,7 +186,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
         <Line
           key={`y${y}`}
           points={[x0 * PX_PER_M, y * PX_PER_M, x1 * PX_PER_M, y * PX_PER_M]}
-          stroke={y % 5 === 0 ? '#9fb39a' : '#cfdccb'}
+          stroke={y % 5 === 0 ? '#e2e2e2' : '#f0f0f0'}
           strokeWidth={y % 5 === 0 ? sw * 1.5 : sw}
           listening={false}
         />,
@@ -197,10 +197,10 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
     const pxPerM = view.s * PX_PER_M;
     const step = pxPerM < 22 ? 5 : pxPerM < 40 ? 2 : 1;
     for (let x = 0; x <= campsite.w; x += step) {
-      lines.push(<Text key={`lx${x}`} x={x * PX_PER_M + 2 / view.s} y={-fs - 3 / view.s} text={`${x}m`} fontSize={fs} fill="#5a6b57" listening={false} />);
+      lines.push(<Text key={`lx${x}`} x={x * PX_PER_M + 2 / view.s} y={-fs - 3 / view.s} text={`${x}m`} fontSize={fs} fill="#a0a0a0" listening={false} />);
     }
     for (let y = step; y <= campsite.h; y += step) {
-      lines.push(<Text key={`ly${y}`} x={-fs * 2.6} y={y * PX_PER_M - fs / 2} text={`${y}m`} fontSize={fs} fill="#5a6b57" listening={false} />);
+      lines.push(<Text key={`ly${y}`} x={-fs * 2.6} y={y * PX_PER_M - fs / 2} text={`${y}m`} fontSize={fs} fill="#a0a0a0" listening={false} />);
     }
     return lines;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -232,7 +232,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
             y={-1e5}
             width={2e5}
             height={2e5}
-            fill="#f3f6ef"
+            fill="#fcfcfc"
             onMouseDown={() => onSelect(null)}
             onTap={() => onSelect(null)}
           />
@@ -241,8 +241,8 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
             y={0}
             width={campsite.w * PX_PER_M}
             height={campsite.h * PX_PER_M}
-            fill="#e3edd9"
-            stroke="#5f8a4d"
+            fill="#f6f6f6"
+            stroke="#c4c4c4"
             strokeWidth={2 / view.s}
             dash={[10 / view.s, 6 / view.s]}
             listening={false}
@@ -253,7 +253,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
             y={campsite.h * PX_PER_M + 6 / view.s}
             text={`캠핑 사이트 ${campsite.w}m × ${campsite.h}m  (격자 1칸 = 1m)`}
             fontSize={12 / view.s}
-            fill="#5a6b57"
+            fill="#a0a0a0"
             listening={false}
           />
         </Layer>
@@ -286,7 +286,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
                   });
                 }}
               >
-                <GearShape gear={g} layer={layer} color={site?.color ?? '#2f7d4f'} selected={p.id === selectedId && !exporting} scale={view.s} />
+                <GearShape gear={g} layer={layer} color={site?.color ?? '#262626'} selected={p.id === selectedId && !exporting} scale={view.s} />
               </Group>
             );
           })}
@@ -298,8 +298,8 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
             rotationSnapTolerance={6}
             rotateAnchorOffset={30}
             anchorSize={22}
-            borderStroke="#ff9f1c"
-            anchorStroke="#ff9f1c"
+            borderStroke="#111"
+            anchorStroke="#111"
             anchorCornerRadius={11}
           />
         </Layer>
@@ -309,7 +309,7 @@ export const CanvasView = forwardRef<CanvasHandle, Props>(function CanvasView({ 
             {sites.map((s, i) => (
               <Group key={s.id} x={(i % 3) * (130 / view.s)} y={campsite.h * PX_PER_M + (26 + Math.floor(i / 3) * 18) / view.s}>
                 <Rect width={12 / view.s} height={12 / view.s} fill={s.color} cornerRadius={2 / view.s} />
-                <Text x={16 / view.s} text={s.name} fontSize={12 / view.s} fill="#333" />
+                <Text x={16 / view.s} text={s.name} fontSize={12 / view.s} fill="#555" />
               </Group>
             ))}
           </Layer>

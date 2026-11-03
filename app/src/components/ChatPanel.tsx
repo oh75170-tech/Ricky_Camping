@@ -115,7 +115,7 @@ export function ChatPanel({ onOpenSettings, onPlace }: { onOpenSettings: () => v
       {err && (
         <div className="chat-err">
           {err}{' '}
-          {err.includes('API 키') && (
+          {err.includes('설정') && (
             <button className="link" onClick={onOpenSettings}>
               설정 열기
             </button>

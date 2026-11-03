@@ -9,16 +9,16 @@ export type Category =
   | 'fridge'
   | 'etc';
 
-export const CATEGORIES: { id: Category; label: string; emoji: string }[] = [
-  { id: 'tent', label: '텐트', emoji: '⛺' },
-  { id: 'tarp', label: '타프', emoji: '🏕️' },
-  { id: 'table', label: '테이블', emoji: '🪵' },
-  { id: 'chair', label: '의자', emoji: '🪑' },
-  { id: 'mat', label: '매트', emoji: '🟫' },
-  { id: 'cot', label: '야전침대', emoji: '🛏️' },
-  { id: 'heater', label: '난방', emoji: '🔥' },
-  { id: 'fridge', label: '냉장고', emoji: '🧊' },
-  { id: 'etc', label: '기타', emoji: '🎒' },
+export const CATEGORIES: { id: Category; label: string }[] = [
+  { id: 'tent', label: '텐트' },
+  { id: 'tarp', label: '타프' },
+  { id: 'table', label: '테이블' },
+  { id: 'chair', label: '의자' },
+  { id: 'mat', label: '매트' },
+  { id: 'cot', label: '야전침대' },
+  { id: 'heater', label: '난방' },
+  { id: 'fridge', label: '냉장고' },
+  { id: 'etc', label: '기타' },
 ];
 
 /** 평면 모양 */

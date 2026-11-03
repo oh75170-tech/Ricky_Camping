@@ -8,17 +8,22 @@ import { ChatPanel } from '../components/ChatPanel';
 import { SharePanel } from '../components/SharePanel';
 import { SpecTable } from '../components/SpecTable';
 import { SettingsModal } from '../components/SettingsModal';
+import { CampsiteModal } from '../components/CampsiteModal';
+import { CollabPanel } from '../components/CollabPanel';
+import { Icon } from '../components/Icon';
+import { getSyncStatus, useSyncStatus } from '../sync';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
 import type { Gear } from '../types';
 
-type Tab = 'pick' | 'custom' | 'more' | 'layer' | 'chat' | 'share';
+type Tab = 'pick' | 'custom' | 'more' | 'collab' | 'layer' | 'chat' | 'share';
 const TABS: { id: Tab; label: string; icon: string }[] = [
-  { id: 'pick', label: '장비 고르기', icon: '🎒' },
-  { id: 'custom', label: '직접 입력', icon: '✏️' },
-  { id: 'more', label: '텐트 더 놓기', icon: '⛺' },
-  { id: 'layer', label: '레이어', icon: '🗂️' },
-  { id: 'chat', label: 'AI 채팅', icon: '🤖' },
-  { id: 'share', label: '공유하기', icon: '📤' },
+  { id: 'pick', label: '장비 고르기', icon: 'pick' },
+  { id: 'custom', label: '직접 입력', icon: 'edit' },
+  { id: 'more', label: '텐트 더 놓기', icon: 'tent' },
+  { id: 'collab', label: '같이 편집', icon: 'users' },
+  { id: 'layer', label: '레이어', icon: 'layers' },
+  { id: 'chat', label: 'AI 채팅', icon: 'chat' },
+  { id: 'share', label: '공유하기', icon: 'share' },
 ];
 
 const BIG = new Set(['tent', 'tarp']);
@@ -60,6 +65,10 @@ export function Planner({ onBack }: { onBack: () => void }) {
   const [selected, setSelected] = useState<string | null>(null);
   const [activeSite, setActiveSite] = useState(() => getState().sites[0].id);
   const [showSettings, setShowSettings] = useState(false);
+  const confirmed = useStore((s) => s.campsite.confirmed);
+  const campsite = useStore((s) => s.campsite);
+  const [showCampsite, setShowCampsite] = useState(() => !confirmed && !getState().placements.length && !getSyncStatus().roomId);
+  const sync = useSyncStatus();
   const [specOpen, setSpecOpen] = useState(() => window.innerWidth >= 760 || window.innerHeight > 900);
   const sites = useStore((s) => s.sites);
   const placements = useStore((s) => s.placements);
@@ -103,6 +112,8 @@ export function Planner({ onBack }: { onBack: () => void }) {
             onAddTentForSite={(g, sid, isNew) => placeGear(g, sid, isNew)}
           />
         );
+      case 'collab':
+        return <CollabPanel onOpenSettings={() => setShowSettings(true)} />;
       case 'layer':
         return <LayerPanel />;
       case 'chat':
@@ -118,15 +129,27 @@ export function Planner({ onBack }: { onBack: () => void }) {
     <div className="planner">
       <header className="topbar">
         <button className="icon-btn" onClick={onBack} aria-label="메인으로">
-          ←
+          <Icon name="back" />
         </button>
-        <h1>장비 배치</h1>
-        <div className="site-badge" onClick={() => setTab('more')}>
+        <h1>
+          장비 배치
+          {campsite.name && <small className="topbar-sub">{campsite.name}</small>}
+        </h1>
+        {sync.roomId && (
+          <button className="site-badge" onClick={() => setTab('collab')} title="공동 편집 중">
+            <span className={`status-dot ${sync.connected ? 'on' : ''}`} />
+            <Icon name="users" size={14} /> {sync.peers}
+          </button>
+        )}
+        <button className="site-badge" onClick={() => setShowCampsite(true)} title="캠핑장 크기">
+          <Icon name="ruler" size={14} /> {campsite.w}×{campsite.h}m
+        </button>
+        <button className="site-badge hide-xs" onClick={() => setTab('more')}>
           <span className="dot" style={{ background: site.color }} />
           {site.name}
-        </div>
+        </button>
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="설정">
-          ⚙️
+          <Icon name="settings" />
         </button>
       </header>
       <nav className="tabs">
@@ -136,7 +159,7 @@ export function Planner({ onBack }: { onBack: () => void }) {
               if (t.id === 'chat' && window.innerWidth < 760) setSpecOpen(false); // 폰: 채팅 입력창 공간 확보
               setTab(tab === t.id ? null : t.id);
             }}>
-            <span>{t.icon}</span>
+            <Icon name={t.icon} size={20} />
             {t.label}
           </button>
         ))}
@@ -148,7 +171,7 @@ export function Planner({ onBack }: { onBack: () => void }) {
               <span />
               <b>{TABS.find((t) => t.id === tab)?.label}</b>
               <button className="icon-btn" aria-label="패널 닫기">
-                ✕
+                <Icon name="close" />
               </button>
             </div>
             <div className="side-scroll">{panel()}</div>
@@ -158,19 +181,19 @@ export function Planner({ onBack }: { onBack: () => void }) {
           <CanvasView ref={canvasRef} selectedId={selected} onSelect={setSelected} />
           <div className="zoom-ctl">
             <button onClick={() => canvasRef.current?.zoom(1.25)} aria-label="확대">
-              ＋
+              <Icon name="plus" />
             </button>
             <button onClick={() => canvasRef.current?.zoom(0.8)} aria-label="축소">
-              －
+              <Icon name="minus" />
             </button>
             <button onClick={() => canvasRef.current?.fit()} aria-label="전체 보기">
-              ⤢
+              <Icon name="fit" />
             </button>
           </div>
           {selPl && (
             <div className="sel-bar">
-              <button onClick={() => actions.movePlacement(selPl.id, { rot: (selPl.rot - 15 + 360) % 360 })}>↺ 15°</button>
-              <button onClick={() => actions.movePlacement(selPl.id, { rot: (selPl.rot + 15) % 360 })}>↻ 15°</button>
+              <button onClick={() => actions.movePlacement(selPl.id, { rot: (selPl.rot - 15 + 360) % 360 })}><Icon name="rotl" size={15} /> 15°</button>
+              <button onClick={() => actions.movePlacement(selPl.id, { rot: (selPl.rot + 15) % 360 })}><Icon name="rotr" size={15} /> 15°</button>
               <button onClick={() => actions.movePlacement(selPl.id, { rot: (selPl.rot + 90) % 360 })}>90°</button>
               <button onClick={() => actions.reorder(selPl.id, 'front')}>앞으로</button>
               <button onClick={() => actions.reorder(selPl.id, 'back')}>뒤로</button>
@@ -195,7 +218,7 @@ export function Planner({ onBack }: { onBack: () => void }) {
           )}
           {placements.length === 0 && (
             <div className="empty-hint">
-              ← "장비 고르기"에서 텐트부터 골라보세요.
+              "장비 고르기"에서 텐트부터 골라보세요.
               <br />
               두 손가락으로 확대/축소, 빈 곳을 끌면 화면 이동
             </div>
@@ -204,11 +227,20 @@ export function Planner({ onBack }: { onBack: () => void }) {
       </div>
       <footer className={`spec-bar ${specOpen ? 'open' : ''}`}>
         <button className="spec-toggle" onClick={() => setSpecOpen((o) => !o)}>
-          📋 내가 고른 장비 제원 ({placements.length}) {specOpen ? '▾' : '▴'}
+          내가 고른 장비 제원 ({placements.length}) <span className="muted">{specOpen ? '접기' : '펼치기'}</span>
         </button>
         {specOpen && <SpecTable selectedId={selected} onSelect={setSelected} />}
       </footer>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showCampsite && (
+        <CampsiteModal
+          onClose={() => {
+            if (!getState().campsite.confirmed) actions.setCampsite(campsite.w, campsite.h);
+            setShowCampsite(false);
+            setTimeout(() => canvasRef.current?.fit(), 50);
+          }}
+        />
+      )}
     </div>
   );
 }
