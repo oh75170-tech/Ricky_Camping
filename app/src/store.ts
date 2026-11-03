@@ -72,8 +72,8 @@ function load(): AppState {
 }
 
 function seed(s: AppState): AppState {
-  if (s.seedVersion >= 3) return s;
-  return { ...s, owned: [...new Set([...s.owned, ...SEED_OWNED])], seedVersion: 3 };
+  if (s.seedVersion >= 4) return s;
+  return { ...s, owned: [...new Set([...s.owned, ...SEED_OWNED])], seedVersion: 4 };
 }
 
 let state: AppState = seed(load());

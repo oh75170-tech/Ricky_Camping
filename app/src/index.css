@@ -245,3 +245,16 @@ a { color: var(--ink); }
 @media (max-width: 420px) { .hide-xs { display: none !important; } }
 
 .preview-pill { margin-left: 8px; font-size: 11px; padding: 2px 8px; border: 1px solid var(--line); border-radius: 999px; background: #fff; }
+
+/* 입력 글자색 고정: 기기가 다크 모드여도 흰 배경 위 글자가 보이도록 */
+html { color-scheme: light; background: var(--bg); }
+input, select, textarea {
+  color: var(--ink);
+  -webkit-text-fill-color: var(--ink);
+  background-color: #fff;
+  caret-color: var(--ink);
+  opacity: 1;
+}
+input::placeholder, textarea::placeholder { color: #a8a8a6; -webkit-text-fill-color: #a8a8a6; }
+input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text-fill-color: var(--ink); }
+.site-list input { background-color: transparent; }

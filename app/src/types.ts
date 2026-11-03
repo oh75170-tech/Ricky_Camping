@@ -67,6 +67,10 @@ export interface Gear {
   shape?: Shape;
   frame?: Frame;
   frameCount?: number;
+  /** 가구 상세 표현: 테이블(slat 원목/대나무, fabric 패브릭, plate 판재, igt IGT 프레임), 의자, 코트 */
+  style?: 'slat' | 'fabric' | 'plate' | 'igt';
+  /** IGT 유닛 수 등 */
+  units?: number;
   /** 육각형(hex)일 때 위·아래 평평한 변의 길이 cm (없으면 길이의 1/2) */
   flat?: number;
   /** 이너텐트 */

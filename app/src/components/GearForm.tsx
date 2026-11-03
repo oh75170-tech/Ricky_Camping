@@ -50,6 +50,8 @@ export function GearForm({
     frameCount: initial?.frameCount,
     inner: initial?.inner,
     ground: initial?.ground,
+    style: initial?.style,
+    units: initial?.units,
     verified: initial?.verified ?? false,
     note: initial?.note,
     source: initial?.source,
@@ -120,6 +122,23 @@ export function GearForm({
             ))}
           </select>
         </label>
+        {d.category === 'table' && (
+          <label>
+            상판 형태
+            <select value={d.style ?? 'slat'} onChange={(e) => set('style', e.target.value as Draft['style'])}>
+              <option value="slat">원목·대나무 (판재 줄)</option>
+              <option value="fabric">패브릭 (헬리녹스형)</option>
+              <option value="plate">판재 (스테인리스·하드탑)</option>
+              <option value="igt">IGT 프레임</option>
+            </select>
+          </label>
+        )}
+        {d.category === 'table' && d.style === 'igt' && (
+          <label>
+            IGT 유닛 수
+            <input type="number" min={1} max={8} value={d.units ?? 3} onChange={(e) => set('units', Number(e.target.value) || 1)} />
+          </label>
+        )}
         {(isTent || d.category === 'tarp') && (
           <label>
             프레임

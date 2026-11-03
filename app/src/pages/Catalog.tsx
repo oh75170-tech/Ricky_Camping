@@ -8,7 +8,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { lookupGear, normalizeGear, NoKeyError } from '../ai';
 import { CORE_BRANDS } from '../data/gear';
 import { Icon } from '../components/Icon';
-import { ask } from '../env';
+import { ask, IS_PREVIEW } from '../env';
 
 type Found = Omit<Gear, 'id'>;
 
@@ -22,7 +22,8 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const [brand, setBrand] = useState<string>(CORE_BRANDS[0]);
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Gear | 'new' | null>(null);
-  const [ai, setAi] = useState<{ query: string; status: string; items: Found[]; verifyOf?: Gear } | null>(null);
+  const [ai, setAi] = useState<{ query: string; status: string; items: Found[]; verifyOf?: Gear; blocked?: 'preview' | 'nokey' } | null>(null);
+  const [draft, setDraft] = useState<Partial<Gear> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -36,6 +37,16 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
 
   const runAi = async (query: string, verifyOf?: Gear) => {
     abortRef.current?.abort();
+    if (IS_PREVIEW) {
+      setAi({
+        query,
+        verifyOf,
+        items: [],
+        blocked: 'preview',
+        status: '지금은 태블릿 미리보기라 외부 통신이 막혀 있어 AI 검색을 할 수 없어요.\n정식 배포(서버 연결) 후에 사용할 수 있습니다. 지금은 "직접 입력"으로 추가해주세요.',
+      });
+      return;
+    }
     const ac = new AbortController();
     abortRef.current = ac;
     setAi({ query, status: '웹에서 공식 제원 검색 중… (30초~1분 정도 걸릴 수 있어요)', items: [], verifyOf });
@@ -51,8 +62,13 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
       });
     } catch (e) {
       if (e instanceof NoKeyError) {
-        setAi(null);
-        setShowSettings(true);
+        setAi({
+          query,
+          verifyOf,
+          items: [],
+          blocked: 'nokey',
+          status: `AI 검색을 하려면 설정이 필요해요.\n${e.message}\n\n설정 없이 바로 추가하려면 "직접 입력"을 눌러주세요.`,
+        });
         return;
       }
       if ((e as Error).name === 'AbortError') return;
@@ -117,7 +133,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               <button className="btn primary" onClick={() => runAi(`${brand} 캠핑 장비 전체 라인업`)}>
                 <Icon name="search" size={16} /> AI로 {brand} 장비 검색
               </button>
-              <button className="btn ghost" onClick={() => setEditing('new')}>
+              <button className="btn ghost" onClick={() => (setDraft(null), setEditing('new'))}>
                 <Icon name="edit" size={16} /> 직접 입력
               </button>
             </div>
@@ -152,16 +168,22 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             </button>
           </div>
         )}
-        <button className="fab" onClick={() => setEditing('new')} aria-label="장비 직접 추가">
+        <button className="fab" onClick={() => (setDraft(null), setEditing('new'))} aria-label="장비 직접 추가">
           <Icon name="plus" size={26} />
         </button>
       </main>
 
       {editing && (
-        <Modal title={editing === 'new' ? '장비 직접 추가' : `${editing.name} 수정`} onClose={() => setEditing(null)}>
+        <Modal
+          title={editing === 'new' ? '장비 직접 추가' : `${editing.name} 수정`}
+          onClose={() => {
+            setEditing(null);
+            setDraft(null);
+          }}
+        >
           <GearForm
             brands={brands}
-            initial={editing === 'new' ? { brand: brand === '__mine' ? '' : brand } : editing}
+            initial={editing === 'new' ? draft ?? { brand: brand === '__mine' ? '' : brand } : editing}
             submitLabel={editing === 'new' ? '추가' : '저장'}
             onCancel={() => setEditing(null)}
             onSubmit={(d) => {
@@ -170,6 +192,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 setBrand(g.brand);
               } else actions.updateGear(editing.id, d);
               setEditing(null);
+              setDraft(null);
             }}
           />
           {editing !== 'new' && editing.custom && (
@@ -196,7 +219,38 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
             setAi(null);
           }}
         >
-          <p className="small pre">{ai.status}</p>
+          <p className={`small pre ${ai.blocked ? 'notice' : ''}`}>{ai.status}</p>
+          {ai.blocked && (
+            <div className="form-actions">
+              {ai.blocked === 'nokey' && (
+                <button
+                  className="btn ghost"
+                  onClick={() => {
+                    setAi(null);
+                    setShowSettings(true);
+                  }}
+                >
+                  <Icon name="settings" size={16} /> 설정 열기
+                </button>
+              )}
+              <button
+                className="btn primary"
+                onClick={() => {
+                  const words = ai.query.split(/\s+/).filter(Boolean);
+                  const known = brands.find((b) => words[0] && b.includes(words[0]));
+                  setDraft(
+                    ai.verifyOf
+                      ? ai.verifyOf
+                      : { brand: known ?? words[0] ?? '', name: (known ? words.slice(1) : words.slice(1)).join(' ') || ai.query },
+                  );
+                  setAi(null);
+                  setEditing(ai.verifyOf ?? 'new');
+                }}
+              >
+                <Icon name="edit" size={16} /> 직접 입력
+              </button>
+            </div>
+          )}
           {ai.items.map((g, i) => (
             <div key={i} className="gear-card">
               <div className="gear-card-head">

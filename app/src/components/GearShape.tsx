@@ -246,15 +246,127 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
     );
   };
 
+
+  /** 테이블·의자·코트 상세 평면도 (위에서 본 모습) */
+  const detailed = gear.category === 'table' || gear.category === 'chair' || gear.category === 'cot';
+  const furniture = () => {
+    const op = layer.furniture;
+    const ink = selected ? '#000' : '#2b2b2b';
+    const thin = 1 / scale;
+    const mid = 1.6 / scale;
+    const legR = Math.max(1.2, Math.min(L, W) * 0.045);
+    const x0 = -L / 2;
+    const y0 = -W / 2;
+    const legs = (inset: number) =>
+      [
+        [x0 + inset, y0 + inset],
+        [-x0 - inset, y0 + inset],
+        [x0 + inset, -y0 - inset],
+        [-x0 - inset, -y0 - inset],
+      ].map(([x, y], i) => <Circle key={`leg${i}`} x={x} y={y} radius={legR} fill={ink} listening={false} />);
+
+    if (gear.category === 'chair') {
+      // 좌석 + 등받이(-x 쪽) + 팔걸이 → 방향을 알 수 있게
+      const back = L * 0.22;
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.18} fill="#d6d6d4" stroke={ink} strokeWidth={sw} />
+          <Rect x={x0} y={y0 + W * 0.06} width={back} height={W * 0.88} cornerRadius={back / 2} fill="#3a3a3a" listening={false} />
+          <Line points={[x0 + back, y0 + W * 0.1, -x0 - L * 0.08, y0 + W * 0.1]} stroke={ink} strokeWidth={mid} lineCap="round" listening={false} />
+          <Line points={[x0 + back, -y0 - W * 0.1, -x0 - L * 0.08, -y0 - W * 0.1]} stroke={ink} strokeWidth={mid} lineCap="round" listening={false} />
+        </Group>
+      );
+    }
+    if (gear.category === 'cot') {
+      // 양쪽 레일 + 다리 바 + 원단
+      const n = Math.max(2, Math.round(gear.l / 60));
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={W * 0.12} fill="#dcdcda" stroke={ink} strokeWidth={sw} />
+          <Line points={[x0 + W * 0.1, y0 + W * 0.08, -x0 - W * 0.1, y0 + W * 0.08]} stroke={ink} strokeWidth={mid} listening={false} />
+          <Line points={[x0 + W * 0.1, -y0 - W * 0.08, -x0 - W * 0.1, -y0 - W * 0.08]} stroke={ink} strokeWidth={mid} listening={false} />
+          {Array.from({ length: n }, (_, i) => {
+            const x = x0 + (L * (i + 0.5)) / n;
+            return <Line key={i} points={[x, y0 + W * 0.08, x, -y0 - W * 0.08]} stroke={ink} strokeWidth={thin} dash={[3 / scale, 2 / scale]} listening={false} />;
+          })}
+          {/* 베개 쪽 표시 */}
+          <Rect x={x0 + W * 0.12} y={y0 + W * 0.2} width={W * 0.45} height={W * 0.6} cornerRadius={W * 0.12} fill="#f4f4f3" listening={false} />
+        </Group>
+      );
+    }
+    // ── 테이블 ──
+    const style = gear.style ?? 'slat';
+    if (style === 'igt') {
+      // IGT 프레임: 바깥 프레임 + 유닛 칸(가운데는 상판/버너 자리)
+      const n = gear.units ?? 3;
+      const rim = Math.min(L, W) * 0.09;
+      const cw = (L - rim * 2) / n;
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={2 / scale} fill="#bdbdbb" stroke={ink} strokeWidth={sw} />
+          {Array.from({ length: n }, (_, i) => (
+            <Rect
+              key={i}
+              x={x0 + rim + i * cw + thin}
+              y={y0 + rim}
+              width={cw - thin * 2}
+              height={W - rim * 2}
+              fill={i === Math.floor(n / 2) && n >= 3 ? '#8f8f8d' : '#efefed'}
+              stroke={ink}
+              strokeWidth={thin}
+              listening={false}
+            />
+          ))}
+          {legs(rim * 0.5)}
+        </Group>
+      );
+    }
+    if (style === 'fabric') {
+      // 패브릭 상판 + 중앙 허브에서 4방향 다리 (헬리녹스류)
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.08} fill="#e4e4e2" stroke={ink} strokeWidth={sw} />
+          <Line points={[x0 + L * 0.06, y0 + W * 0.08, -x0 - L * 0.06, -y0 - W * 0.08]} stroke={ink} strokeWidth={mid} listening={false} />
+          <Line points={[x0 + L * 0.06, -y0 - W * 0.08, -x0 - L * 0.06, y0 + W * 0.08]} stroke={ink} strokeWidth={mid} listening={false} />
+          <Circle radius={Math.min(L, W) * 0.08} fill="#555" listening={false} />
+          {legs(Math.min(L, W) * 0.06)}
+        </Group>
+      );
+    }
+    if (style === 'plate') {
+      // 판재(스테인리스/하드탑): 테두리 림 + 다리
+      const rim = Math.min(L, W) * 0.07;
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.06} fill="#d0d0ce" stroke={ink} strokeWidth={sw} />
+          <Rect x={x0 + rim} y={y0 + rim} width={L - rim * 2} height={W - rim * 2} cornerRadius={Math.min(L, W) * 0.04} fill="#ececea" stroke={ink} strokeWidth={thin} listening={false} />
+          {legs(rim * 1.4)}
+        </Group>
+      );
+    }
+    // slat: 원목/대나무 상판 – 길이 방향 판재 줄
+    const slats = Math.max(3, Math.round(gear.w / 8));
+    return (
+      <Group opacity={op}>
+        <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.05} fill="#e4e4e2" stroke={ink} strokeWidth={sw} />
+        {Array.from({ length: slats - 1 }, (_, i) => {
+          const y = y0 + (W * (i + 1)) / slats;
+          return <Line key={i} points={[x0 + L * 0.02, y, -x0 - L * 0.02, y]} stroke="#8a8a8a" strokeWidth={thin} listening={false} />;
+        })}
+        {legs(Math.min(L, W) * 0.08)}
+      </Group>
+    );
+  };
+
   return (
     <Group>
       {/* 레이어 순서: 그라운드시트 → 이너 → 플라이(투명) → 프레임 */}
       {gear.ground && sub(gear.ground, '#8c8c8c', layer.ground)}
       {gear.inner && sub(gear.inner, '#e4e4e4', layer.inner, true)}
-      {outline()}
+      {detailed ? furniture() : outline()}
       {frame()}
       {dims()}
-      {layer.showLabels && (big || selected || L * scale > 60) && (
+      {layer.showLabels && (big || selected || L * scale > 40) && (
         <Text
           text={gear.name}
           x={big ? -L / 2 : -Math.max(L, 120 / scale) / 2}
