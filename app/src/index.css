@@ -258,3 +258,19 @@ input, select, textarea {
 input::placeholder, textarea::placeholder { color: #a8a8a6; -webkit-text-fill-color: #a8a8a6; }
 input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text-fill-color: var(--ink); }
 .site-list input { background-color: transparent; }
+
+/* 장비 웹 검색 */
+.catalog-search { align-items: center; }
+.search-box { position: relative; flex: 1; min-width: 0; }
+.search-box .search { padding-right: 46px; }
+.search-go { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); width: 38px; height: 34px; border: 0; border-radius: 8px; background: var(--ink); color: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.search-go:disabled { background: #cfcfcd; }
+.flash { margin: 8px 12px 0; padding: 10px 12px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 13.5px; }
+.web-search-form { margin-bottom: 8px; }
+.pick-card { cursor: default; }
+.pick-card.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+.pick-card input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; }
+.sticky-actions { position: sticky; bottom: -14px; display: flex; gap: 8px; justify-content: flex-end; padding: 10px 0 4px; background: var(--bg); border-top: 1px solid var(--line); margin-top: 6px; }
+.loading::after { content: ' ⋯'; animation: blink 1.2s infinite; }
+@keyframes blink { 50% { opacity: .2; } }
+@media (max-width: 759px) { .catalog-search { flex-wrap: nowrap; } .catalog-search > .btn { white-space: nowrap; } }

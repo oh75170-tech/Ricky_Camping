@@ -22,7 +22,17 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const [brand, setBrand] = useState<string>(CORE_BRANDS[0]);
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Gear | 'new' | null>(null);
-  const [ai, setAi] = useState<{ query: string; status: string; items: Found[]; verifyOf?: Gear; blocked?: 'preview' | 'nokey' } | null>(null);
+  const [ai, setAi] = useState<{
+    query: string;
+    homepage: string;
+    status: string;
+    items: Found[];
+    selected: number[];
+    busy: boolean;
+    verifyOf?: Gear;
+    blocked?: 'preview' | 'nokey';
+  } | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
   const [draft, setDraft] = useState<Partial<Gear> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -35,35 +45,70 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
     return gear.filter((g) => g.brand === brand);
   }, [gear, brand, searching, ql, owned, wish]);
 
-  const runAi = async (query: string, verifyOf?: Gear) => {
+  const norm = (t: string) => t.toLowerCase().replace(/[\s()·\-_.]/g, '');
+  const isDup = (g: Found) => gear.some((x) => norm(x.brand) === norm(g.brand) && norm(x.name) === norm(g.name));
+
+  /** 검색 창 열기 (자동으로 바로 검색 시작) */
+  const openSearch = (query: string, verifyOf?: Gear, homepage = '') => {
+    setAi({ query, homepage, status: '', items: [], selected: [], busy: false, verifyOf });
+    if (query.trim()) runAi(query, homepage, verifyOf);
+  };
+
+  const runAi = async (query: string, homepage: string, verifyOf?: Gear) => {
     abortRef.current?.abort();
     const ac = new AbortController();
     abortRef.current = ac;
-    setAi({ query, status: IS_PREVIEW ? 'Claude에게 제원을 묻는 중… (처음 한 번은 AI 사용 허용 창이 떠요. 30초~1분 걸릴 수 있어요)' : '웹에서 공식 제원 검색 중… (30초~1분 정도 걸릴 수 있어요)', items: [], verifyOf });
+    const status = IS_PREVIEW
+      ? `Claude에게 제원을 묻는 중… (처음 한 번은 AI 사용 허용 창이 떠요. 30초~1분)${homepage ? '\n※ 미리보기에서는 홈페이지를 직접 열 수 없어 Claude가 아는 정보로 찾습니다.' : ''}`
+      : homepage
+        ? `${homepage} 에서 "${query}" 장비를 찾는 중… (1~2분 걸릴 수 있어요)`
+        : `웹에서 "${query}" 장비를 검색 중… (30초~1분 정도 걸릴 수 있어요)`;
+    setAi({ query, homepage, status, items: [], selected: [], busy: true, verifyOf });
     try {
       const fallbackBrand = verifyOf?.brand ?? query.split(/\s+/)[0];
-      const res = await lookupGear(query, undefined, ac.signal);
+      const res = await lookupGear(query, undefined, ac.signal, homepage);
       const items = res.items.map((g) => normalizeGear(g, fallbackBrand));
+      const selected = items.map((g, i) => (isDup(g) ? -1 : i)).filter((i) => i >= 0);
       setAi({
         query,
+        homepage,
         verifyOf,
         items,
-        status: items.length ? `${items.length}개 장비를 찾았어요. 확인 후 추가해주세요.${IS_PREVIEW ? '\n(웹 검색 없이 Claude가 아는 정보라 모두 "추정"으로 저장됩니다)' : ''}` : `제원을 찾지 못했어요.\n${res.text.slice(0, 400)}`,
+        selected,
+        busy: false,
+        status: items.length
+          ? `${items.length}개 장비를 찾았어요. 추가할 장비를 골라주세요.${IS_PREVIEW ? '\n(웹 검색 없이 Claude가 아는 정보라 모두 "추정"으로 저장됩니다)' : ''}`
+          : `해당하는 장비를 찾지 못했어요. 검색어를 바꾸거나 홈페이지 주소를 넣어보세요.\n${res.text.slice(0, 300)}`,
       });
     } catch (e) {
       if (e instanceof NoKeyError) {
         setAi({
           query,
+          homepage,
           verifyOf,
           items: [],
+          selected: [],
+          busy: false,
           blocked: 'nokey',
           status: `AI 검색을 하려면 설정이 필요해요.\n${e.message}\n\n설정 없이 바로 추가하려면 "직접 입력"을 눌러주세요.`,
         });
         return;
       }
       if ((e as Error).name === 'AbortError') return;
-      setAi({ query, verifyOf, items: [], status: `오류: ${(e as Error).message}` });
+      setAi({ query, homepage, verifyOf, items: [], selected: [], busy: false, status: `오류: ${(e as Error).message}` });
     }
+  };
+
+  const addSelected = () => {
+    if (!ai) return;
+    const picked = ai.selected.map((i) => ai.items[i]).filter(Boolean);
+    if (!picked.length) return;
+    picked.forEach((g) => actions.addGear(g));
+    setQ('');
+    setBrand(picked[0].brand);
+    setAi(null);
+    setFlash(`${picked.length}개 장비를 장비목록에 추가했어요. 카드의 "보유"를 누르면 보유목록에 들어갑니다.`);
+    setTimeout(() => setFlash(null), 6000);
   };
 
   const brandTabs = [...brands];
@@ -83,20 +128,31 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         </button>
       </header>
 
-      <div className="catalog-search">
-        <input
-          className="search"
-          placeholder="브랜드·제품 검색 (예: 콜맨, 노르디스크 아스가르드)"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          enterKeyHint="search"
-        />
-        {searching && (
-          <button className="btn small" onClick={() => runAi(q.trim())}>
-            <Icon name="search" size={14} /> AI로 찾아 추가
+      <form
+        className="catalog-search"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (q.trim()) openSearch(q.trim());
+        }}
+      >
+        <div className="search-box">
+          <input
+            className="search"
+            placeholder="장비명 입력 후 돋보기 → 웹에서 검색 (예: 엑스페드 메가매트)"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            enterKeyHint="search"
+            aria-label="장비 검색"
+          />
+          <button type="submit" className="search-go" aria-label="웹에서 검색" disabled={!q.trim()}>
+            <Icon name="search" size={18} />
           </button>
-        )}
-      </div>
+        </div>
+        <button type="button" className="btn small ghost" onClick={() => openSearch('', undefined)}>
+          <Icon name="link" size={14} /> 홈페이지에서 찾기
+        </button>
+      </form>
+      {flash && <div className="flash">{flash}</div>}
 
       <nav className="brand-tabs">
         <button className={brand === '__mine' && !searching ? 'on' : ''} onClick={() => (setQ(''), setBrand('__mine'))}>
@@ -111,7 +167,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
       </nav>
 
       <main className="catalog-body">
-        {searching && <p className="muted">"{q}" 검색 결과 {list.length}개 · 원하는 장비가 없으면 "AI로 찾아 추가"를 눌러주세요. 새 브랜드는 탭으로 자동 추가됩니다.</p>}
+        {searching && <p className="muted">현재 목록에서 "{q}" {list.length}개 · 오른쪽 돋보기를 누르면 웹에서 더 찾아 골라 추가할 수 있어요.</p>}
         {!searching && brand !== '__mine' && list.length === 0 && (
           <div className="empty-brand">
             <p>
@@ -120,7 +176,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               <span className="muted small">공식 자료를 찾지 못한 브랜드입니다. AI 검색이나 직접 입력으로 채워주세요.</span>
             </p>
             <div className="row">
-              <button className="btn primary" onClick={() => runAi(`${brand} 캠핑 장비 전체 라인업`)}>
+              <button className="btn primary" onClick={() => openSearch(`${brand} 캠핑 장비 전체 라인업`)}>
                 <Icon name="search" size={16} /> AI로 {brand} 장비 검색
               </button>
               <button className="btn ghost" onClick={() => (setDraft(null), setEditing('new'))}>
@@ -140,7 +196,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               </h3>
               <div className="card-grid">
                 {items.map((g) => (
-                  <GearCard key={g.id} gear={g} onEdit={setEditing} onVerify={(x) => runAi(`${x.brand} ${x.name} ${x.model ?? ''}`.trim(), x)} />
+                  <GearCard key={g.id} gear={g} onEdit={setEditing} onVerify={(x) => openSearch(`${x.brand} ${x.name} ${x.model ?? ''}`.trim(), x, x.source ?? '')} />
                 ))}
               </div>
             </section>
@@ -153,7 +209,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 {c.label}: 등록 없음
               </span>
             ))}
-            <button className="btn small ghost" onClick={() => runAi(`${brand} ${CATEGORIES.filter((c) => !list.some((g) => g.category === c.id)).map((c) => c.label).join(', ')}`)}>
+            <button className="btn small ghost" onClick={() => openSearch(`${brand} ${CATEGORIES.filter((c) => !list.some((g) => g.category === c.id)).map((c) => c.label).join(', ')}`)}>
               <Icon name="search" size={14} /> 빈 항목 AI 검색
             </button>
           </div>
@@ -203,13 +259,47 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
 
       {ai && (
         <Modal
-          title={ai.verifyOf ? `AI 제원 확인: ${ai.verifyOf.name}` : `AI 검색: ${ai.query}`}
+          title={ai.verifyOf ? `AI 제원 확인: ${ai.verifyOf.name}` : '장비 웹 검색'}
           onClose={() => {
             abortRef.current?.abort();
             setAi(null);
           }}
         >
-          <p className={`small pre ${ai.blocked ? 'notice' : ''}`}>{ai.status}</p>
+          <form
+            className="gear-form web-search-form"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (ai.query.trim()) runAi(ai.query.trim(), ai.homepage.trim(), ai.verifyOf);
+            }}
+          >
+            <label>
+              장비명 / 브랜드
+              <input value={ai.query} onChange={(e) => setAi({ ...ai, query: e.target.value })} placeholder="예: 엑스페드 메가매트 듀오" />
+            </label>
+            <label>
+              홈페이지 (선택)
+              <input
+                value={ai.homepage}
+                onChange={(e) => setAi({ ...ai, homepage: e.target.value })}
+                placeholder="예: https://www.exped.com"
+                inputMode="url"
+                autoCapitalize="off"
+              />
+            </label>
+            <p className="muted small">홈페이지를 넣으면 그 사이트에서 먼저 찾아봅니다. 비워두면 웹 전체에서 찾아요.</p>
+            <div className="form-actions">
+              {ai.busy ? (
+                <button type="button" className="btn ghost" onClick={() => (abortRef.current?.abort(), setAi({ ...ai, busy: false, status: '중단했어요.' }))}>
+                  중지
+                </button>
+              ) : (
+                <button type="submit" className="btn primary" disabled={!ai.query.trim()}>
+                  <Icon name="search" size={16} /> 검색
+                </button>
+              )}
+            </div>
+          </form>
+          {ai.status && <p className={`small pre ${ai.blocked ? 'notice' : ''} ${ai.busy ? 'loading' : ''}`}>{ai.status}</p>}
           {ai.blocked && (
             <div className="form-actions">
               {ai.blocked === 'nokey' && !IS_PREVIEW && (
@@ -228,11 +318,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 onClick={() => {
                   const words = ai.query.split(/\s+/).filter(Boolean);
                   const known = brands.find((b) => words[0] && b.includes(words[0]));
-                  setDraft(
-                    ai.verifyOf
-                      ? ai.verifyOf
-                      : { brand: known ?? words[0] ?? '', name: (known ? words.slice(1) : words.slice(1)).join(' ') || ai.query },
-                  );
+                  setDraft(ai.verifyOf ? ai.verifyOf : { brand: known ?? words[0] ?? '', name: words.slice(1).join(' ') || ai.query });
                   setAi(null);
                   setEditing(ai.verifyOf ?? 'new');
                 }}
@@ -241,67 +327,68 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
               </button>
             </div>
           )}
-          {ai.items.map((g, i) => (
-            <div key={i} className="gear-card">
-              <div className="gear-card-head">
-                <div>
-                  <div className="gear-name">{g.name}</div>
-                  <div className="muted small">
-                    {g.brand} · {CATEGORIES.find((c) => c.id === g.category)?.label}
+          {ai.items.map((g, i) => {
+            const dup = isDup(g);
+            const on = ai.selected.includes(i);
+            return (
+              <div key={i} className={`gear-card pick-card ${on ? 'on' : ''}`}>
+                <div className="gear-card-head">
+                  {!ai.verifyOf && (
+                    <input
+                      type="checkbox"
+                      aria-label={`${g.name} 선택`}
+                      checked={on}
+                      onChange={() => setAi({ ...ai, selected: on ? ai.selected.filter((x) => x !== i) : [...ai.selected, i] })}
+                    />
+                  )}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="gear-name">{g.name}</div>
+                    <div className="muted small">
+                      {g.brand} · {CATEGORIES.find((c) => c.id === g.category)?.label}
+                      {g.model ? ` · ${g.model}` : ''}
+                      {dup && <span className="badge warn">이미 목록에 있음</span>}
+                    </div>
                   </div>
+                  {g.verified ? <span className="badge ok">확인됨</span> : <span className="badge warn">추정</span>}
                 </div>
-                {g.verified ? <span className="badge ok">확인됨</span> : <span className="badge warn">추정</span>}
-              </div>
-              <div className="gear-dims">
-                <span>
-                  <Icon name="ruler" size={14} /> {g.l} × {g.w} × {g.h} cm
-                </span>
-                {g.material && <span className="muted">{g.material}</span>}
-              </div>
-              {g.note && <div className="muted small note">{g.note}</div>}
-              {g.source && (
-                <a className="small" href={g.source} target="_blank" rel="noreferrer">
-                  출처 보기
-                </a>
-              )}
-              <div className="gear-actions">
-                {ai.verifyOf ? (
-                  <button
-                    className="chip primary"
-                    onClick={() => {
-                      actions.updateGear(ai.verifyOf!.id, { ...g, brand: ai.verifyOf!.brand, category: ai.verifyOf!.category });
-                      setAi(null);
-                    }}
-                  >
-                    이 값으로 업데이트
-                  </button>
-                ) : (
-                  <button
-                    className="chip primary"
-                    onClick={(e) => {
-                      actions.addGear(g);
-                      (e.target as HTMLButtonElement).disabled = true;
-                      (e.target as HTMLButtonElement).textContent = '추가됨';
-                    }}
-                  >
-                    DB에 추가
-                  </button>
+                <div className="gear-dims">
+                  <span>
+                    <Icon name="ruler" size={14} /> {g.l} × {g.w} × {g.h} cm
+                  </span>
+                  {g.material && <span className="muted">{g.material}</span>}
+                  {g.weight && <span className="muted">{g.weight}</span>}
+                </div>
+                {g.note && <div className="muted small note">{g.note}</div>}
+                {g.source && (
+                  <a className="small" href={g.source} target="_blank" rel="noreferrer">
+                    출처 보기
+                  </a>
+                )}
+                {ai.verifyOf && (
+                  <div className="gear-actions">
+                    <button
+                      className="chip primary"
+                      onClick={() => {
+                        actions.updateGear(ai.verifyOf!.id, { ...g, brand: ai.verifyOf!.brand, category: ai.verifyOf!.category });
+                        setAi(null);
+                      }}
+                    >
+                      이 값으로 업데이트
+                    </button>
+                  </div>
                 )}
               </div>
+            );
+          })}
+          {!ai.verifyOf && ai.items.length > 0 && (
+            <div className="sticky-actions">
+              <button className="btn ghost" onClick={() => setAi({ ...ai, selected: ai.selected.length === ai.items.length ? [] : ai.items.map((_, i) => i) })}>
+                {ai.selected.length === ai.items.length ? '전체 해제' : '전체 선택'}
+              </button>
+              <button className="btn primary" disabled={!ai.selected.length} onClick={addSelected}>
+                선택한 {ai.selected.length}개 장비목록에 추가
+              </button>
             </div>
-          ))}
-          {!ai.verifyOf && ai.items.length > 1 && (
-            <button
-              className="btn primary full"
-              onClick={() => {
-                ai.items.forEach((g) => actions.addGear(g));
-                setQ('');
-                setBrand(ai.items[0].brand);
-                setAi(null);
-              }}
-            >
-              전부 추가
-            </button>
           )}
         </Modal>
       )}

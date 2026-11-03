@@ -15,6 +15,7 @@ export const CORE_BRANDS = [
   '제이크라',
   'TFS',
   '힐레베르그',
+  'Exped',
 ] as const;
 
 /** 사용자가 보유 장비로 알려준 목록 (첫 실행/업데이트 시 자동으로 '보유' 등록) */
@@ -23,6 +24,7 @@ export const SEED_OWNED = [
   'hb-keron4gt', 'hb-allak3', 'pl-twoman', 'sp-igt-sep2', 'sp-multifunc3', 'sp-openmf-r', 'sp-openmf-l',
   'sp-sus-mytable', 'sp-oneaction-low', 'hx-chairtwo', 'hx-chairzero-l', 'hx-chairzero-hb', 'hx-tableone-l',
   'sp-lowchair-short', 'ba-guardstation8', 'hb-tarp20xp', 'hx-tac-cotone',
+  'ex-megamat-duo-queen', 'ex-deepsleep-duo-lwp', 'wf-bombe-2p',
 ];
 
 /**
@@ -841,5 +843,49 @@ export const BUILTIN_GEAR: Gear[] = [
     verified: false,
     note: '택티컬 모델 전용 수치를 못 찾아 일반 코트원 컨버터블(191×66.5×16.5) 기준. 재질 추정',
     source: 'https://helinox.com/products/tactical-cot-one-convertible',
+  },
+  {
+    id: 'ex-megamat-duo-queen',
+    brand: 'Exped',
+    category: 'mat',
+    name: '메가매트 듀오 10 퀸 (MegaMat Duo Queen)',
+    l: 203,
+    w: 152,
+    h: 10,
+    material: '폴리에스터 / 오픈셀 폼 (자충식)',
+    weight: '약 5.39kg',
+    shape: 'rect',
+    verified: true,
+    note: '"엑스페드 듀오 퀸"을 메가매트 듀오 퀸으로 판단. 203×152×10cm (여러 판매처 공통)',
+    source: 'https://www.markenkoffer.de/en/products/exped-basecamp-megamat-duo-queen-sleeping-mat-203-cm-cypress',
+  },
+  {
+    id: 'ex-deepsleep-duo-lwp',
+    brand: 'Exped',
+    category: 'mat',
+    name: '딥슬립 매트 듀오 7.5 LW+',
+    l: 197,
+    w: 132,
+    h: 7.5,
+    material: '폴리에스터 / 오픈셀 폼 (자충식)',
+    weight: '약 4.4~4.5kg',
+    shape: 'rect',
+    verified: true,
+    note: 'LW+는 듀오(2인) 사이즈. 197×132×7.5cm, R값 9 (판매처). 1인용 LW는 197×65cm',
+    source: 'https://www.kaviso.com/collections/vendors/products/exped-deepsleep-mat-duo',
+  },
+  {
+    id: 'wf-bombe-2p',
+    brand: '우드퓨엘',
+    category: 'mat',
+    name: '봄버 매트 2P (BOMBE)',
+    l: 200,
+    w: 140,
+    h: 5,
+    material: '코듀라 계열 원단 (롤매트)',
+    shape: 'rect',
+    verified: false,
+    note: '공식 치수를 찾지 못함(woodfuel.kr 접속 불가). 2인용 기준 추정 – 실측 후 수정해주세요',
+    source: 'https://woodfuel.kr/',
   },
 ];

@@ -32,6 +32,8 @@ function client() {
 }
 
 const WEB_SEARCH = { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 5 };
+/** 사용자가 알려준 홈페이지를 직접 열어보는 도구 (대화에 나온 URL만 열 수 있음) */
+const WEB_FETCH = { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: 6 };
 
 /** 모델별 서버측 폴백(거절 시 자동 대체) 옵션 */
 function fallbackOpts(model: string) {
@@ -118,6 +120,7 @@ export async function chat(
   system: string,
   onText: (full: string) => void,
   signal?: AbortSignal,
+  opts?: { fetch?: boolean },
 ): Promise<ChatResult> {
   if (IS_PREVIEW) return chatViaSample(history, system, onText, signal);
   const c = client();
@@ -131,7 +134,7 @@ export async function chat(
         max_tokens: 16000,
         system,
         messages: msgs,
-        tools: [WEB_SEARCH],
+        tools: opts?.fetch ? [WEB_SEARCH, WEB_FETCH] : [WEB_SEARCH],
         output_config: { effort: 'medium' },
         ...fallbackOpts(model),
       },
@@ -164,7 +167,9 @@ const LOOKUP_SYSTEM = `당신은 캠핑 장비 제원 조사원입니다. web_se
 \`\`\`json
 {"items":[{"brand":"브랜드(한글)","category":"${CAT_IDS}","name":"제품명","model":"모델번호","l":0,"w":0,"h":0,"material":"재질","weight":"무게","shape":"rect|tunnel|dome|hex|round|tarp-hexa|tarp-rect","frame":"none|dome-x|arches|onepole|ridge|springbar|air","frameCount":0,"inner":{"l":0,"w":0,"offset":0},"verified":true,"note":"","source":"URL"}]}
 \`\`\`
-inner는 이너텐트가 있을 때만. 최대 12개.`;
+inner는 이너텐트가 있을 때만. 최대 12개.
+- 검색어와 맞는 제품이 여러 개(사이즈·모델 변형)면 각각 별도 항목으로 모두 넣어 사용자가 고를 수 있게 하세요.
+- source에는 실제로 확인한 페이지 URL을 넣으세요.`;
 
 export function parseGearJson(text: string): Partial<Gear>[] {
   const m = text.match(/```(?:json|gear)?\s*([\s\S]*?)```/g);
@@ -204,13 +209,18 @@ export function normalizeGear(g: Partial<Gear>, fallbackBrand: string): Omit<Gea
   };
 }
 
-/** 브랜드/제품명으로 제원 검색 (웹검색 사용) */
-export async function lookupGear(query: string, onText?: (t: string) => void, signal?: AbortSignal) {
+/** 브랜드/제품명으로 제원 검색 (웹검색 사용). homepage가 있으면 그 사이트를 먼저 열어 찾음 */
+export async function lookupGear(query: string, onText?: (t: string) => void, signal?: AbortSignal, homepage?: string) {
+  const site = homepage?.trim() ? (/^https?:\/\//i.test(homepage.trim()) ? homepage.trim() : `https://${homepage.trim()}`) : '';
+  const ask = site
+    ? `다음 홈페이지에서 "${query}"에 해당하는 캠핑 장비를 찾아 제원을 조사해주세요.\n홈페이지: ${site}\n먼저 web_fetch로 이 홈페이지(와 그 안의 제품 페이지)를 열어 확인하고, 부족하면 web_search로 같은 사이트나 공식 판매처를 찾아보세요.`
+    : `다음 브랜드/제품의 캠핑 장비 제원을 조사해주세요: "${query}"`;
   const res = await chat(
-    [{ role: 'user', content: `다음 브랜드/제품의 캠핑 장비 제원을 조사해주세요: "${query}"\n(텐트, 타프, 테이블, 의자, 매트, 야전침대, 난방, 냉장고 중 해당되는 것)` }],
+    [{ role: 'user', content: `${ask}\n(텐트, 타프, 테이블, 의자, 매트, 야전침대, 난방, 냉장고 중 해당되는 것)` }],
     LOOKUP_SYSTEM,
     onText ?? (() => {}),
     signal,
+    { fetch: !!site },
   );
   let items = parseGearJson(res.text);
   // 미리보기에서는 웹 검색 없이 Claude 지식으로 답하므로 항상 '추정'으로 표시

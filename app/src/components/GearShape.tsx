@@ -248,7 +248,7 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
 
 
   /** 테이블·의자·코트 상세 평면도 (위에서 본 모습) */
-  const detailed = gear.category === 'table' || gear.category === 'chair' || gear.category === 'cot';
+  const detailed = gear.category === 'table' || gear.category === 'chair' || gear.category === 'cot' || gear.category === 'mat';
   const furniture = () => {
     const op = layer.furniture;
     const ink = selected ? '#000' : '#2b2b2b';
@@ -322,6 +322,24 @@ export function GearShape({ gear, layer, color, selected, scale }: Props) {
           {high && <Rect x={x0 + L * 0.03} y={-W * 0.14} width={L * 0.08} height={W * 0.28} cornerRadius={L * 0.04} fill="#2e2e2c" listening={false} />}
           <Circle x={hubX} radius={Math.min(L, W) * 0.05} fill="#555" listening={false} />
           {[fl, fr, bl, br].map(([x, y], i) => legDot(x, y, `d${i}`))}
+        </Group>
+      );
+    }
+    if (gear.category === 'mat') {
+      // 매트: 길이 방향 튜브(공기실) 줄 + 밸브, 2인용이면 가운데 구분선
+      const tubes = Math.max(4, Math.round(gear.w / 13));
+      const duo = gear.w >= 100;
+      return (
+        <Group opacity={op}>
+          <Rect x={x0} y={y0} width={L} height={W} cornerRadius={Math.min(L, W) * 0.08} fill="#d9d9d7" stroke={ink} strokeWidth={sw} />
+          {Array.from({ length: tubes - 1 }, (_, i) => {
+            const y = y0 + (W * (i + 1)) / tubes;
+            return <Line key={i} points={[x0 + L * 0.04, y, -x0 - L * 0.04, y]} stroke="#9a9a98" strokeWidth={thin} listening={false} />;
+          })}
+          {duo && <Line points={[x0 + L * 0.02, 0, -x0 - L * 0.02, 0]} stroke={ink} strokeWidth={mid} dash={[6 / scale, 3 / scale]} listening={false} />}
+          {/* 베개 쪽 + 밸브 */}
+          <Rect x={x0 + L * 0.03} y={y0 + W * 0.06} width={L * 0.12} height={W * 0.88} cornerRadius={L * 0.03} fill="#ececea" listening={false} />
+          <Circle x={-x0 - L * 0.04} y={-y0 - W * 0.1} radius={Math.max(2, Math.min(L, W) * 0.03)} fill={ink} listening={false} />
         </Group>
       );
     }
