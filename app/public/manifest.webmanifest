@@ -1,6 +1,6 @@
 {
-  "name": "Ricky Camping - 캠핑 배치 시뮬레이터",
-  "short_name": "Ricky Camping",
+  "name": "CampCanvas by Rick_Camping",
+  "short_name": "CampCanvas",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
@@ -8,6 +8,7 @@
   "background_color": "#f7f7f6",
   "theme_color": "#ffffff",
   "lang": "ko",
+  "description": "캠핑 사이트 장비 배치 시뮬레이터",
   "icons": [
     { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
     { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },

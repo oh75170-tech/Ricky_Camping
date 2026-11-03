@@ -1,5 +1,5 @@
 // 간단한 오프라인 캐시 (캠핑장에서 데이터가 약해도 열리도록)
-const CACHE = 'ricky-camping-v1';
+const CACHE = 'campcanvas-v1';
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(['./', './index.html', './manifest.webmanifest', './icon.svg'])));
   self.skipWaiting();

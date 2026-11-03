@@ -1,5 +1,5 @@
 /**
- * Ricky Camping 서버 (Cloudflare Workers)
+ * CampCanvas (by Rick_Camping) 서버 (Cloudflare Workers)
  *  1) /anthropic/v1/messages : Anthropic API 프록시 – API 키는 서버 비밀값으로만 보관
  *  2) /rooms                 : 단체캠핑 배치 공동 편집 방 (Durable Object + WebSocket)
  */

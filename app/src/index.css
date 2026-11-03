@@ -65,6 +65,7 @@ a { color: var(--green2); }
 .home-hero { text-align: center; padding: 40px 0 24px; }
 .logo { color: var(--ink); display: inline-flex; padding: 18px; border: 1px solid var(--line); border-radius: 28px; background: #fff; }
 .home-hero h1 { margin: 18px 0 6px; font-size: 30px; font-weight: 800; letter-spacing: -0.03em; }
+.home-by { font-size: 13px; font-weight: 600; letter-spacing: .02em; color: var(--muted); margin: -2px 0 10px; }
 .home-hero p { margin: 0; color: var(--muted); }
 .home-actions { display: grid; gap: 14px; margin-top: 12px; }
 @media (min-width: 640px) { .home-actions { grid-template-columns: 1fr 1fr; } }

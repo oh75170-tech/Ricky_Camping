@@ -8,7 +8,8 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
     <div className="home">
       <div className="home-hero">
         <div className="logo"><Icon name="tent" size={56} stroke={1.2} /></div>
-        <h1>Ricky Camping</h1>
+        <h1>CampCanvas</h1>
+        <div className="home-by">by Rick_Camping</div>
         <p>텐트·타프·가구를 1m 격자 위에 미리 배치해보는 캠핑 시뮬레이터</p>
       </div>
       <div className="home-actions">

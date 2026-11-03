@@ -25,7 +25,7 @@ export interface AppState {
   settings: Settings;
 }
 
-const KEY = 'ricky-camping-v1';
+const KEY = 'ricky-camping-v1'; // 저장 키는 기존 데이터 유지를 위해 그대로 사용
 /** 모노톤 사이트 색 (명도 차이로 구분) */
 export const SITE_COLORS = ['#262626', '#8f8f8f', '#555555', '#b8b8b8', '#3d3d3d', '#737373', '#a3a3a3'];
 
