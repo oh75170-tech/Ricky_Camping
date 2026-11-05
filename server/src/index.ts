@@ -23,8 +23,10 @@ function cors(req: Request, env: Env): Record<string, string> {
   return {
     'Access-Control-Allow-Origin': ok ? origin : allowed[0] ?? '',
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
+    // SDK가 보내는 헤더(x-stainless-*, authorization 등)가 버전마다 달라서, 브라우저가 요청한 헤더를 그대로 허용
     'Access-Control-Allow-Headers':
-      'content-type,x-api-key,anthropic-version,anthropic-beta,anthropic-dangerous-direct-browser-access,x-stainless-arch,x-stainless-lang,x-stainless-os,x-stainless-package-version,x-stainless-retry-count,x-stainless-runtime,x-stainless-runtime-version,x-stainless-timeout,x-stainless-helper-method',
+      req.headers.get('Access-Control-Request-Headers') ||
+      'content-type,x-api-key,authorization,anthropic-version,anthropic-beta,anthropic-dangerous-direct-browser-access',
     'Access-Control-Max-Age': '86400',
     Vary: 'Origin',
   };
@@ -48,7 +50,10 @@ function newRoomId() {
 }
 
 async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>) {
-  if (!safeEqual(req.headers.get('x-api-key') ?? '', env.APP_PASSCODE)) {
+  // 접속 코드는 x-api-key 또는 Authorization: Bearer 로 올 수 있음
+  const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+  const given = req.headers.get('x-api-key') || bearer;
+  if (!safeEqual(given, env.APP_PASSCODE)) {
     return json({ type: 'error', error: { type: 'authentication_error', message: '앱 접속 코드가 올바르지 않습니다.' } }, 401, h);
   }
   let body: Record<string, unknown>;
