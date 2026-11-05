@@ -32,7 +32,7 @@ export function composeImage(map: HTMLCanvasElement, title: string): HTMLCanvasE
   ctx.fillText(title, pad, pad + 40);
   ctx.fillStyle = '#8a8a8a';
   ctx.font = '26px system-ui, -apple-system, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
-  ctx.fillText(`사이트 ${s.campsite.w}m × ${s.campsite.h}m · 격자 1칸 = 1m · CampCanvas by Rick_Camping`, pad, pad + 84);
+  ctx.fillText(`사이트 ${s.campsite.w}m × ${s.campsite.h}m · 격자 1칸 = 1m · CampCanvas by @ricky_camping`, pad, pad + 84);
 
   ctx.drawImage(map, pad, headerH + pad, W - pad * 2, mapH);
 

@@ -2,6 +2,9 @@ import { useStore } from '../store';
 import { Icon } from '../components/Icon';
 import { IS_PREVIEW } from '../env';
 import { isNativeApp } from '../share';
+import illust from '../assets/home-illust.webp';
+
+const INSTAGRAM = 'https://www.instagram.com/ricky_camping/';
 
 export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
   const owned = useStore((s) => s.owned.length);
@@ -11,7 +14,13 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
       <div className="home-hero">
         <div className="logo"><Icon name="tent" size={56} stroke={1.2} /></div>
         <h1>CampCanvas</h1>
-        <div className="home-by">by Rick_Camping{IS_PREVIEW && <span className="preview-pill">태블릿 미리보기</span>}</div>
+        <div className="home-by">
+          by{' '}
+          <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer">
+            @ricky_camping
+          </a>
+          {IS_PREVIEW && <span className="preview-pill">태블릿 미리보기</span>}
+        </div>
         <p>텐트·타프·가구를 1m 격자 위에 미리 배치해보는 캠핑 시뮬레이터</p>
       </div>
       <div className="home-actions">
@@ -48,6 +57,16 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
           <p className="muted small">안드로이드는 "출처를 알 수 없는 앱" 허용과 Play 프로텍트 "무시하고 설치"가 필요할 수 있어요.</p>
         </section>
       )}
+      <figure className="home-illust">
+        <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer" aria-label="인스타그램 @ricky_camping 열기">
+          <img src={illust} alt="텐트 앞에서 커피를 마시는 캠핑 커플 일러스트" width={720} height={720} />
+        </a>
+        <figcaption>
+          <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer">
+            Instagram @ricky_camping
+          </a>
+        </figcaption>
+      </figure>
       <p className="home-foot muted small">
         제원의 "추정" 표시는 공식 자료로 확인하지 못한 값입니다. 구매·배치 전 공식 홈페이지에서 꼭 확인해주세요.
       </p>
