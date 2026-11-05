@@ -291,3 +291,11 @@ a.btn { text-decoration: none; }
 .data-panel { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--line); padding-top: 12px; margin-top: 4px; }
 .data-panel h4 { margin: 0; color: var(--ink); }
 .data-box { display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--line); border-radius: 12px; padding: 12px; background: #fff; color: var(--ink); }
+
+/* 홈 하단 일러스트 + 인스타그램 */
+.home-by a { color: inherit; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #c8c8c6; }
+.home-illust { margin: 28px auto 0; width: min(320px, 76vw); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.home-illust a { display: block; width: 100%; }
+.home-illust img { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 14px rgba(0,0,0,.08)); }
+.home-illust figcaption a { display: inline-flex; width: auto; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; background: #fff; }
+.home-foot { padding-top: 18px; }
