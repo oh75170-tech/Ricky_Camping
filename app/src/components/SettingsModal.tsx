@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { MODELS } from '../ai';
+import { DEFAULT_SERVER } from '../config';
 import { actions, useStore } from '../store';
 import { Modal } from './Modal';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
   const [d, setD] = useState(settings);
-  const envServer = (import.meta.env.VITE_API_BASE as string | undefined) ?? '';
+  const envServer = (import.meta.env.VITE_API_BASE as string | undefined) || DEFAULT_SERVER;
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }));
 
   return (
