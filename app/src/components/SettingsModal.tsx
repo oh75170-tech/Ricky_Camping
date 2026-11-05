@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { checkPasscode, MODELS } from '../ai';
 import { DEFAULT_SERVER } from '../config';
-import { actions, useStore } from '../store';
+import { actions, getState, useStore } from '../store';
 import { Modal } from './Modal';
+import { DataPanel } from './DataPanel';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
@@ -82,6 +83,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             ))}
           </select>
         </label>
+        <DataPanel />
         <div className="form-actions">
           <button
             type="button"
@@ -89,7 +91,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             onClick={() => {
               const cleared = { ...d, apiKey: '', passcode: '' };
               setD(cleared);
-              actions.setSettings(cleared);
+              actions.setSettings({ ...cleared, syncCode: getState().settings.syncCode });
             }}
           >
             키·코드 삭제
@@ -98,7 +100,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             type="button"
             className="btn primary"
             onClick={() => {
-              actions.setSettings({ ...d, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim() });
+              actions.setSettings({ ...d, syncCode: getState().settings.syncCode, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim() });
               onClose();
             }}
           >

@@ -144,6 +144,25 @@ export default {
       return json({ id }, 200, h);
     }
 
+    // 내 데이터 동기화: /sync/<동기화 코드의 SHA-256 해시>  (접속 코드 필요)
+    const sm = url.pathname.match(/^\/sync\/([a-f0-9]{64})$/);
+    if (sm) {
+      if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
+      const stub = env.ROOMS.get(env.ROOMS.idFromName(`sync:${sm[1]}`));
+      if (req.method === 'GET') {
+        const r = await stub.fetch('https://room/doc');
+        if (r.status === 404) return json({ doc: null }, 200, h);
+        return new Response(r.body, { status: r.status, headers: { ...h, 'content-type': 'application/json' } });
+      }
+      if (req.method === 'PUT') {
+        const body = await req.text();
+        if (body.length > MAX_DOC_BYTES * 2) return json({ error: 'too large' }, 413, h);
+        await stub.fetch('https://room/doc', { method: 'PUT', body });
+        return json({ ok: true, savedAt: Date.now() }, 200, h);
+      }
+      return json({ error: 'method' }, 405, h);
+    }
+
     const m = url.pathname.match(/^\/rooms\/([^/]+)(\/ws)?$/);
     if (m) {
       const id = m[1];
