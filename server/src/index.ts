@@ -80,7 +80,7 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
 
   const headers: Record<string, string> = {
     'content-type': 'application/json',
-    'x-api-key': env.ANTHROPIC_API_KEY,
+    'x-api-key': (env.ANTHROPIC_API_KEY ?? '').trim(),
     'anthropic-version': req.headers.get('anthropic-version') ?? '2023-06-01',
   };
   const beta = req.headers.get('anthropic-beta');
@@ -92,9 +92,21 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
     body: JSON.stringify(body),
   });
   if (upstream.status === 401 || upstream.status === 403) {
-    // 서버에 등록된 Anthropic 키 문제 – 접속 코드 문제와 구분되게 502로 알림
+    // 서버에 등록된 Anthropic 키 문제 – 접속 코드 문제와 구분되게 502로 알리고, Anthropic이 준 이유를 함께 전달
+    let reason = '';
+    try {
+      const j = (await upstream.json()) as { error?: { type?: string; message?: string } };
+      reason = `${j.error?.type ?? ''}: ${j.error?.message ?? ''}`;
+    } catch {
+      /* 본문 없음 */
+    }
+    const k = (env.ANTHROPIC_API_KEY ?? '').trim();
+    const hint = `키 길이 ${k.length}자, 시작 "${k.slice(0, 7)}…"`;
     return json(
-      { type: 'error', error: { type: 'upstream_auth', message: '서버에 등록된 Anthropic API 키가 올바르지 않거나 권한이 없습니다. (upstream_auth)' } },
+      {
+        type: 'error',
+        error: { type: 'upstream_auth', message: `Anthropic이 ${upstream.status}로 거부 (upstream_auth) – ${reason} [${hint}]` },
+      },
       502,
       h,
     );
