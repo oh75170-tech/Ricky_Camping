@@ -299,3 +299,8 @@ a.btn { text-decoration: none; }
 .home-illust img { display: block; width: 100%; height: auto; filter: drop-shadow(0 6px 14px rgba(0,0,0,.08)); }
 .home-illust figcaption a { display: inline-flex; width: auto; font-size: 13px; font-weight: 600; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; background: #fff; }
 .home-foot { padding-top: 18px; }
+
+.save-tip { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 12px; background: var(--soft); color: var(--ink); font-size: 13px; line-height: 1.5; }
+.search-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.search-actions .btn { flex: 1 1 auto; }
+.btn.disabled { opacity: .5; pointer-events: none; }
