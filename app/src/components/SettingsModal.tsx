@@ -29,38 +29,57 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             개인 API 키
           </button>
         </div>
-        {d.aiMode === 'server' ? (
-          <label>
-            AI 접속 코드
-            <input type="password" value={d.passcode} onChange={(e) => (set('passcode', e.target.value), setCheck(null))} placeholder="관리자에게 받은 코드" autoComplete="off" />
-          </label>
-        ) : null}
         {d.aiMode === 'server' && (
-          <div className="row">
-            <button
-              type="button"
-              className="btn small"
-              disabled={!d.passcode.trim()}
-              onClick={async () => {
-                setCheck('확인 중…');
-                // 입력한 서버 주소로 확인하도록 잠시 반영
-                actions.setSettings({ serverUrl: d.serverUrl.trim() });
-                const r = await checkPasscode(d.passcode);
-                setCheck(
-                  r === 'ok'
-                    ? '✔ 접속 코드가 맞아요.'
-                    : r === 'wrong'
-                      ? '✘ 접속 코드가 서버와 달라요. GitHub에 등록한 APP_PASSCODE 값과 똑같이(대소문자 포함) 입력해주세요.'
-                      : r === 'offline'
-                        ? '✘ 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요.'
-                        : '✘ 서버 주소가 없어요.',
-                );
-              }}
-            >
-              접속 코드 확인
-            </button>
-            {check && <span className="small">{check}</span>}
-          </div>
+          <>
+            <label>
+              AI 접속 코드
+              <input type="password" value={d.passcode} onChange={(e) => (set('passcode', e.target.value), setCheck(null))} placeholder="관리자에게 받은 코드" autoComplete="off" />
+            </label>
+            <label>
+              AI 검색 코드 (웹 검색용, 관리자가 따로 제공)
+              <input
+                type="password"
+                value={d.searchCode}
+                onChange={(e) => (set('searchCode', e.target.value), setCheck(null))}
+                placeholder="없으면 비워두세요 – 브라우저 검색·직접 입력은 그대로 쓸 수 있어요"
+                autoComplete="off"
+              />
+            </label>
+            <div className="row">
+              <button
+                type="button"
+                className="btn small"
+                disabled={!d.passcode.trim()}
+                onClick={async () => {
+                  setCheck('확인 중…');
+                  // 입력한 서버 주소로 확인하도록 잠시 반영
+                  actions.setSettings({ serverUrl: d.serverUrl.trim() });
+                  const r = await checkPasscode(d.passcode, d.searchCode);
+                  if (r.result !== 'ok') {
+                    setCheck(
+                      r.result === 'wrong'
+                        ? '✘ 접속 코드가 서버와 달라요. GitHub에 등록한 APP_PASSCODE 값과 똑같이(대소문자 포함) 입력해주세요.'
+                        : r.result === 'offline'
+                          ? '✘ 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요.'
+                          : '✘ 서버 주소가 없어요.',
+                    );
+                    return;
+                  }
+                  const search = !d.searchCode.trim()
+                    ? 'AI 검색 코드는 비어 있어요(AI 검색 없이 사용).'
+                    : !r.searchEnabled
+                      ? '서버에 AI 검색이 아직 켜져 있지 않아요.'
+                      : r.searchOk
+                        ? '✔ AI 검색 코드도 맞아요.'
+                        : '✘ AI 검색 코드가 달라요.';
+                  setCheck(`✔ 접속 코드가 맞아요. ${search}`);
+                }}
+              >
+                코드 확인
+              </button>
+              {check && <span className="small">{check}</span>}
+            </div>
+          </>
         )}
         {d.aiMode !== 'server' && (
           <label>
@@ -89,7 +108,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             type="button"
             className="btn ghost"
             onClick={() => {
-              const cleared = { ...d, apiKey: '', passcode: '' };
+              const cleared = { ...d, apiKey: '', passcode: '', searchCode: '' };
               setD(cleared);
               actions.setSettings({ ...cleared, syncCode: getState().settings.syncCode });
             }}
@@ -100,7 +119,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             type="button"
             className="btn primary"
             onClick={() => {
-              actions.setSettings({ ...d, syncCode: getState().settings.syncCode, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim() });
+              actions.setSettings({ ...d, syncCode: getState().settings.syncCode, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim(), searchCode: d.searchCode.trim() });
               onClose();
             }}
           >

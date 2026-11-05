@@ -11,6 +11,8 @@ export interface Settings {
   model: string;
   /** 내 데이터 서버 동기화 코드 (비어 있으면 동기화 안 함) */
   syncCode: string;
+  /** AI 검색(웹 검색) 전용 코드 – 관리자가 따로 제공 */
+  searchCode: string;
 }
 
 export interface AppState {
@@ -51,7 +53,7 @@ const defaults: AppState = {
   },
   campsite: { w: 12, h: 10, name: '', confirmed: false },
   seedVersion: 0,
-  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '' },
+  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '' },
 };
 
 function load(): AppState {

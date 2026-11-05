@@ -17,7 +17,8 @@ export class NoKeyError extends Error {
   }
 }
 
-function client() {
+/** maxRetries: AI 검색은 자동 재시도가 하루 횟수를 깎으므로 0 */
+function client(maxRetries = 2) {
   const { aiMode, apiKey, passcode } = getState().settings;
   if (aiMode === 'server') {
     const base = serverUrl();
@@ -25,23 +26,87 @@ function client() {
     if (!passcode) throw new NoKeyError();
     // 서버가 실제 API 키를 붙여 Anthropic으로 전달합니다. 브라우저에는 접속 코드만 저장됩니다.
     // 한글·공백이 있어도 헤더로 보낼 수 있게 인코딩 (서버에서 복원)
-    return new Anthropic({ apiKey: encodeURIComponent(passcode.trim()), baseURL: `${base}/anthropic`, dangerouslyAllowBrowser: true });
+    return new Anthropic({ apiKey: encodeURIComponent(passcode.trim()), baseURL: `${base}/anthropic`, dangerouslyAllowBrowser: true, maxRetries });
   }
   if (!apiKey) throw new NoKeyError();
   // 개인 키 직접 모드: 키는 이 기기(localStorage)에만 저장되어 브라우저에서 직접 호출합니다.
-  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+  return new Anthropic({ apiKey, dangerouslyAllowBrowser: true, maxRetries });
 }
 
 /** 설정 화면에서 접속 코드가 맞는지 서버에 확인 (요금 없음) */
-export async function checkPasscode(code: string): Promise<'ok' | 'wrong' | 'noserver' | 'offline'> {
+export interface AuthCheck {
+  result: 'ok' | 'wrong' | 'noserver' | 'offline';
+  searchEnabled?: boolean;
+  searchOk?: boolean;
+}
+export async function checkPasscode(code: string, searchCode = ''): Promise<AuthCheck> {
   const base = serverUrl();
-  if (!base) return 'noserver';
+  if (!base) return { result: 'noserver' };
   try {
-    const r = await fetch(`${base}/auth-check`, { method: 'POST', headers: { 'x-api-key': encodeURIComponent(code.trim()) } });
-    const j = (await r.json()) as { ok?: boolean };
-    return j.ok ? 'ok' : 'wrong';
+    const r = await fetch(`${base}/auth-check`, {
+      method: 'POST',
+      headers: { 'x-api-key': encodeURIComponent(code.trim()), 'x-search-code': encodeURIComponent(searchCode.trim()) },
+    });
+    const j = (await r.json()) as { ok?: boolean; searchEnabled?: boolean; searchOk?: boolean };
+    return { result: j.ok ? 'ok' : 'wrong', searchEnabled: j.searchEnabled, searchOk: j.searchOk };
   } catch {
-    return 'offline';
+    return { result: 'offline' };
+  }
+}
+
+/** AI 검색(웹 검색)을 쓸 수 있는지: 서버 모드는 접속 코드 + AI 검색 코드, 개인 키 모드는 키 */
+export function searchReady(): boolean {
+  if (IS_PREVIEW) return true;
+  const { aiMode, apiKey, passcode, searchCode } = getState().settings;
+  return aiMode === 'server' ? !!(serverUrl() && passcode && searchCode.trim()) : !!apiKey;
+}
+
+/** 오늘 AI 검색 사용량 (서버 모드) */
+export async function getQuota(): Promise<{ used: number; limit: number; searchEnabled: boolean } | null> {
+  const base = serverUrl();
+  const { aiMode, passcode } = getState().settings;
+  if (IS_PREVIEW || aiMode !== 'server' || !base || !passcode) return null;
+  try {
+    const r = await fetch(`${base}/quota`, { headers: { 'x-api-key': encodeURIComponent(passcode.trim()) } });
+    if (!r.ok) return null;
+    return (await r.json()) as { used: number; limit: number; searchEnabled: boolean };
+  } catch {
+    return null;
+  }
+}
+
+// ───────── 검색 결과 저장소(서버 캐시) ─────────
+const normKey = (t: string) => t.toLowerCase().replace(/\s+/g, ' ').replace(/https?:\/\//, '').replace(/\/+$/, '').trim();
+async function cacheKey(query: string, homepage: string) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`lookup:${normKey(query)}|${normKey(homepage)}`));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+function cacheReady() {
+  const { passcode } = getState().settings;
+  return !IS_PREVIEW && !!serverUrl() && !!passcode;
+}
+async function cacheGet(query: string, homepage: string): Promise<{ items: Partial<Gear>[]; savedAt: number } | null> {
+  if (!cacheReady()) return null;
+  try {
+    const r = await fetch(`${serverUrl()}/cache/${await cacheKey(query, homepage)}`, {
+      headers: { 'x-api-key': encodeURIComponent(getState().settings.passcode.trim()) },
+    });
+    const j = (await r.json()) as { hit?: boolean; items?: Partial<Gear>[]; savedAt?: number };
+    return j.hit && Array.isArray(j.items) && j.items.length ? { items: j.items, savedAt: j.savedAt ?? 0 } : null;
+  } catch {
+    return null;
+  }
+}
+async function cachePut(query: string, homepage: string, items: Partial<Gear>[]) {
+  if (!cacheReady() || !items.length) return;
+  try {
+    await fetch(`${serverUrl()}/cache/${await cacheKey(query, homepage)}`, {
+      method: 'PUT',
+      headers: { 'x-api-key': encodeURIComponent(getState().settings.passcode.trim()), 'content-type': 'application/json' },
+      body: JSON.stringify({ items }),
+    });
+  } catch {
+    /* 저장 실패해도 검색 결과는 그대로 사용 */
   }
 }
 
@@ -53,6 +118,10 @@ export function aiReady(): boolean {
 }
 
 const WEB_SEARCH = { type: 'web_search_20260209' as const, name: 'web_search' as const, max_uses: 5 };
+/** 저렴한 검색 모드(Haiku): 동적 필터링 없는 기본 도구 버전 + 횟수·분량 제한 */
+const CHEAP_MODEL = 'claude-haiku-5-5';
+const CHEAP_SEARCH = { type: 'web_search_20250305' as const, name: 'web_search' as const, max_uses: 2 };
+const CHEAP_FETCH = { type: 'web_fetch_20250910' as const, name: 'web_fetch' as const, max_uses: 2, max_content_tokens: 6000 };
 /** 사용자가 알려준 홈페이지를 직접 열어보는 도구 (대화에 나온 URL만 열 수 있음) */
 const WEB_FETCH = { type: 'web_fetch_20260209' as const, name: 'web_fetch' as const, max_uses: 6 };
 
@@ -141,25 +210,36 @@ export async function chat(
   system: string,
   onText: (full: string) => void,
   signal?: AbortSignal,
-  opts?: { fetch?: boolean },
+  opts?: { fetch?: boolean; cheap?: boolean },
 ): Promise<ChatResult> {
   if (IS_PREVIEW) return chatViaSample(history, system, onText, signal);
-  const c = client();
-  const model = getState().settings.model;
+  const c = client(opts?.cheap ? 0 : 2);
+  const settings = getState().settings;
+  const server = settings.aiMode === 'server';
+  // 웹 검색은 AI 검색 코드가 있을 때만 (개인 키 모드는 본인 요금이라 허용)
+  const web = server ? !!settings.searchCode.trim() : true;
+  const cheap = !!opts?.cheap;
+  const model = cheap ? CHEAP_MODEL : settings.model;
+  const tools = !web ? undefined : cheap ? (opts?.fetch ? [CHEAP_SEARCH, CHEAP_FETCH] : [CHEAP_SEARCH]) : opts?.fetch ? [WEB_SEARCH, WEB_FETCH] : [WEB_SEARCH];
   let msgs = [...history];
   let text = '';
   for (let i = 0; i < 4; i++) {
+    const headers: Record<string, string> = {};
+    if (server && web) {
+      headers['x-search-code'] = encodeURIComponent(settings.searchCode.trim());
+      headers['x-cc-round'] = i === 0 ? 'first' : 'continue';
+    }
     const stream = c.beta.messages.stream(
       {
         model,
-        max_tokens: 16000,
+        max_tokens: cheap ? 8000 : 16000,
         system,
         messages: msgs,
-        tools: opts?.fetch ? [WEB_SEARCH, WEB_FETCH] : [WEB_SEARCH],
-        output_config: { effort: 'medium' },
-        ...fallbackOpts(model),
+        ...(tools ? { tools } : {}),
+        output_config: { effort: cheap ? 'low' : 'medium' },
+        ...(cheap ? {} : fallbackOpts(model)),
       },
-      { signal },
+      { signal, headers },
     );
     stream.on('text', (delta) => {
       text += delta;
@@ -232,6 +312,9 @@ export function normalizeGear(g: Partial<Gear>, fallbackBrand: string): Omit<Gea
 
 /** 브랜드/제품명으로 제원 검색 (웹검색 사용). homepage가 있으면 그 사이트를 먼저 열어 찾음 */
 export async function lookupGear(query: string, onText?: (t: string) => void, signal?: AbortSignal, homepage?: string) {
+  // 1) 예전에 누군가 찾은 결과가 서버에 있으면 AI 없이 바로 사용 (요금 0)
+  const cached = await cacheGet(query, homepage ?? '');
+  if (cached) return { text: '', items: cached.items, cached: true as const, savedAt: cached.savedAt };
   const site = homepage?.trim() ? (/^https?:\/\//i.test(homepage.trim()) ? homepage.trim() : `https://${homepage.trim()}`) : '';
   const ask = site
     ? `다음 홈페이지에서 "${query}"에 해당하는 캠핑 장비를 찾아 제원을 조사해주세요.\n홈페이지: ${site}\n먼저 web_fetch로 이 홈페이지(와 그 안의 제품 페이지)를 열어 확인하고, 부족하면 web_search로 같은 사이트나 공식 판매처를 찾아보세요.`
@@ -241,13 +324,14 @@ export async function lookupGear(query: string, onText?: (t: string) => void, si
     LOOKUP_SYSTEM,
     onText ?? (() => {}),
     signal,
-    { fetch: !!site },
+    { fetch: !!site, cheap: true },
   );
   let items = parseGearJson(res.text);
   // 미리보기에서는 웹 검색 없이 Claude 지식으로 답하므로 항상 '추정'으로 표시
   if (IS_PREVIEW)
     items = items.map((g) => ({ ...g, verified: false, note: `AI 추정(웹 검색 없음)${g.note ? ` · ${g.note}` : ''} – 공식 제원 확인 필요` }));
-  return { text: res.text, items };
+  if (!IS_PREVIEW) void cachePut(query, homepage ?? '', items);
+  return { text: res.text, items, cached: false as const, savedAt: 0 };
 }
 
 export function plannerSystemPrompt(context: string) {

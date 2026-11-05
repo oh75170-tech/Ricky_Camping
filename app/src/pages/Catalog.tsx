@@ -5,7 +5,7 @@ import { GearCard } from '../components/GearCard';
 import { GearForm } from '../components/GearForm';
 import { Modal } from '../components/Modal';
 import { SettingsModal } from '../components/SettingsModal';
-import { aiReady, lookupGear, normalizeGear, NoKeyError } from '../ai';
+import { getQuota, lookupGear, normalizeGear, NoKeyError, searchReady } from '../ai';
 import { CORE_BRANDS } from '../data/gear';
 import { Icon } from '../components/Icon';
 import { ask, IS_PREVIEW } from '../env';
@@ -33,6 +33,8 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
     blocked?: 'preview' | 'nokey';
   } | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
+  const [quota, setQuota] = useState<{ used: number; limit: number; searchEnabled: boolean } | null>(null);
+  const refreshQuota = () => void getQuota().then(setQuota);
   const [draft, setDraft] = useState<Partial<Gear> | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -49,10 +51,10 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const norm = (t: string) => t.toLowerCase().replace(/[\s()·\-_.]/g, '');
   const isDup = (g: Found) => gear.some((x) => norm(x.brand) === norm(g.brand) && norm(x.name) === norm(g.name));
 
-  /** 검색 창 열기 (자동으로 바로 검색 시작) */
+  /** 검색 창 열기 – 요금이 들지 않는 '브라우저 검색 + 직접 입력'을 먼저 안내하고, AI 검색은 눌렀을 때만 실행 */
   const openSearch = (query: string, verifyOf?: Gear, homepage = '') => {
     setAi({ query, homepage, status: '', items: [], selected: [], busy: false, verifyOf });
-    if (query.trim()) runAi(query, homepage, verifyOf);
+    refreshQuota();
   };
 
   /** AI 없이도 되는 검색: 기기 브라우저에서 구글 검색 (홈페이지가 있으면 그 사이트 안에서) */
@@ -68,7 +70,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
 
   const runAi = async (query: string, homepage: string, verifyOf?: Gear) => {
     abortRef.current?.abort();
-    if (!aiReady()) {
+    if (!searchReady()) {
       const t = new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setAi({
         query,
@@ -78,7 +80,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         selected: [],
         busy: false,
         blocked: 'nokey',
-        status: `AI가 아직 연결되지 않아 자동 검색을 할 수 없어요. (${t})\n· 설정(⚙️)에서 "AI 접속 코드"를 넣으면 자동으로 찾아 드려요.\n· 지금은 "브라우저에서 검색"으로 찾아보고 "직접 입력"으로 추가할 수 있어요.`,
+        status: `AI 검색은 관리자가 제공한 "AI 검색 코드"가 있어야 쓸 수 있어요. (${t})\n· 코드가 있으면 설정(⚙️)의 "AI 검색 코드"에 넣어주세요.\n· 코드가 없어도 "브라우저에서 검색"으로 공식 제원을 찾고 "직접 입력"으로 무료로 추가할 수 있어요.`,
       });
       return;
     }
@@ -103,10 +105,14 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         selected,
         busy: false,
         status: items.length
-          ? `${items.length}개 장비를 찾았어요. 추가할 장비를 골라주세요.${IS_PREVIEW ? '\n(웹 검색 없이 Claude가 아는 정보라 모두 "추정"으로 저장됩니다)' : ''}`
+          ? res.cached
+            ? `예전에 찾아 둔 결과 ${items.length}개를 불러왔어요. (AI 요금 없음 · ${new Date(res.savedAt).toLocaleDateString('ko-KR')} 검색)`
+            : `${items.length}개 장비를 찾았어요. 추가할 장비를 골라주세요.${IS_PREVIEW ? '\n(웹 검색 없이 Claude가 아는 정보라 모두 "추정"으로 저장됩니다)' : ''}`
           : `해당하는 장비를 찾지 못했어요. 검색어를 바꾸거나 홈페이지 주소를 넣어보세요.\n${res.text.slice(0, 300)}`,
       });
+      refreshQuota();
     } catch (e) {
+      refreshQuota();
       if (e instanceof NoKeyError) {
         setAi({
           query,
@@ -122,7 +128,13 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
       }
       if ((e as Error).name === 'AbortError') return;
       const msg = (e as Error).message ?? '';
-      const friendly = /connection error|failed to fetch|network/i.test(msg)
+      const friendly = /daily_limit/.test(msg)
+        ? '오늘 AI 검색 횟수를 모두 썼어요. 내일 다시 쓸 수 있어요.\n지금은 "브라우저에서 검색"으로 찾고 "직접 입력"으로 추가해주세요. (무료)'
+        : /search_code_error/.test(msg)
+          ? 'AI 검색 코드가 맞지 않아요. 설정(⚙️)의 "AI 검색 코드"를 다시 확인해주세요.'
+          : /search_disabled/.test(msg)
+            ? 'AI 검색이 아직 꺼져 있어요. (관리자가 서버에 AI 검색 코드를 등록해야 해요)'
+            : /connection error|failed to fetch|network/i.test(msg)
         ? '서버에 연결하지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 시도해주세요.'
         : /upstream_auth/.test(msg)
           ? `서버에 등록된 Anthropic API 키에 문제가 있어요. (접속 코드 문제는 아니에요)\n자세한 이유: ${(msg.match(/Anthropic이[^"}]*/) ?? [msg])[0]}`
@@ -327,41 +339,29 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 autoCapitalize="off"
               />
             </label>
-            <p className="muted small">홈페이지를 넣으면 그 사이트에서 먼저 찾아봅니다. 비워두면 웹 전체에서 찾아요.</p>
-            {!aiReady() && !ai.status && <p className="notice small">AI가 아직 연결되지 않았어요. 검색을 누르면 브라우저 검색·직접 입력 방법을 안내해 드려요.</p>}
-            <div className="form-actions">
-              {ai.busy ? (
-                <button type="button" className="btn ghost" onClick={() => (abortRef.current?.abort(), setAi({ ...ai, busy: false, status: '중단했어요.' }))}>
-                  중지
-                </button>
-              ) : (
-                <button type="submit" className="btn primary" disabled={!ai.query.trim()}>
-                  <Icon name="search" size={16} /> 검색
-                </button>
-              )}
+            <div className="save-tip">
+              <b>💡 무료로 찾는 방법을 먼저 써보세요</b>
+              <span>
+                <b>브라우저에서 검색</b>으로 공식 홈페이지 제원을 확인한 뒤 <b>직접 입력</b>으로 추가하면 요금이 들지 않아요. 홈페이지를 넣으면 그 사이트 안에서만 찾아요.
+              </span>
+              <span className="muted">
+                AI 검색은 관리자가 준 "AI 검색 코드"가 있어야 하고
+                {quota ? `, 하루 ${quota.limit}회까지 쓸 수 있어요 (오늘 ${Math.min(quota.used, quota.limit)}회 사용).` : ', 하루 사용 횟수가 정해져 있어요.'} 한 번 찾은 제품은 저장돼서 다시 찾을 때는 무료예요.
+              </span>
             </div>
-          </form>
-          {ai.status && <p key={ai.status} className={`small pre ${ai.blocked ? 'notice warn-box' : ''} ${ai.busy ? 'loading' : ''}`}>{ai.status}</p>}
-          {ai.blocked && (
-            <div className="form-actions">
-              {ai.blocked === 'nokey' && !IS_PREVIEW && (
-                <button
-                  className="btn ghost"
-                  onClick={() => {
-                    setAi(null);
-                    setShowSettings(true);
-                  }}
-                >
-                  <Icon name="settings" size={16} /> 설정 열기
-                </button>
-              )}
-              {ai.query.trim() && (
-                <a className="btn ghost" href={browserSearchUrl(ai.query, ai.homepage)} target="_blank" rel="noreferrer">
-                  <Icon name="search" size={16} /> 브라우저에서 검색
-                </a>
-              )}
+            <div className="search-actions">
+              <a
+                className={`btn primary ${ai.query.trim() ? '' : 'disabled'}`}
+                href={ai.query.trim() ? browserSearchUrl(ai.query, ai.homepage) : undefined}
+                target="_blank"
+                rel="noreferrer"
+                aria-disabled={!ai.query.trim()}
+              >
+                <Icon name="search" size={16} /> 브라우저에서 검색
+              </a>
               <button
-                className="btn primary"
+                type="button"
+                className="btn"
                 onClick={() => {
                   const words = ai.query.split(/\s+/).filter(Boolean);
                   const known = brands.find((b) => words[0] && b.includes(words[0]));
@@ -371,6 +371,29 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
                 }}
               >
                 <Icon name="edit" size={16} /> 직접 입력
+              </button>
+              {ai.busy ? (
+                <button type="button" className="btn ghost" onClick={() => (abortRef.current?.abort(), setAi({ ...ai, busy: false, status: '중단했어요.' }))}>
+                  중지
+                </button>
+              ) : (
+                <button type="submit" className="btn ghost" disabled={!ai.query.trim()}>
+                  AI 검색{searchReady() ? '' : ' (코드 필요)'}
+                </button>
+              )}
+            </div>
+          </form>
+          {ai.status && <p key={ai.status} className={`small pre ${ai.blocked ? 'notice warn-box' : ''} ${ai.busy ? 'loading' : ''}`}>{ai.status}</p>}
+          {ai.blocked === 'nokey' && !IS_PREVIEW && (
+            <div className="form-actions">
+              <button
+                className="btn ghost small"
+                onClick={() => {
+                  setAi(null);
+                  setShowSettings(true);
+                }}
+              >
+                <Icon name="settings" size={14} /> 설정에서 AI 검색 코드 넣기
               </button>
             </div>
           )}

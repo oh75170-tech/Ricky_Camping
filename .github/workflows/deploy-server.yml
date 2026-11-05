@@ -5,6 +5,7 @@ name: Deploy server to Cloudflare Workers
 #   CLOUDFLARE_ACCOUNT_ID  Cloudflare 계정 ID
 #   ANTHROPIC_API_KEY      Anthropic API 키 (AI 기능용)
 #   APP_PASSCODE           앱 설정에 입력할 AI 접속 코드 (직접 정한 문자열)
+#   SEARCH_CODE            (선택) AI 검색 전용 코드 – 없으면 AI 검색이 꺼짐
 on:
   workflow_dispatch:
   push:
@@ -55,6 +56,11 @@ jobs:
         run: |
           printf '%s' "${{ secrets.ANTHROPIC_API_KEY }}" | npx wrangler secret put ANTHROPIC_API_KEY
           printf '%s' "${{ secrets.APP_PASSCODE }}" | npx wrangler secret put APP_PASSCODE
+          if [ -n "${{ secrets.SEARCH_CODE }}" ]; then
+            printf '%s' "${{ secrets.SEARCH_CODE }}" | npx wrangler secret put SEARCH_CODE
+          else
+            echo "::warning::SEARCH_CODE가 없어 AI 검색은 꺼진 상태로 배포됩니다."
+          fi
       - name: Health check
         if: steps.check.outputs.ready == 'true'
         run: |

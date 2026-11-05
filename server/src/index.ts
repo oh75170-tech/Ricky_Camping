@@ -7,6 +7,10 @@
 export interface Env {
   ANTHROPIC_API_KEY: string;
   APP_PASSCODE: string;
+  /** AI 검색(웹 검색) 전용 코드 – 없으면 AI 검색 꺼짐 */
+  SEARCH_CODE?: string;
+  /** 하루 AI 검색 횟수 제한 (기본 20) */
+  DAILY_SEARCH_LIMIT?: string;
   ALLOWED_ORIGINS: string;
   ROOMS: DurableObjectNamespace;
 }
@@ -63,6 +67,33 @@ function passcodeOk(req: Request, env: Env) {
   return safeEqual(raw, want) || safeEqual(decoded.trim(), want);
 }
 
+const CHEAP_MODEL = 'claude-haiku-5-5';
+const SEARCH_MAX_USES = 2;
+const FETCH_MAX_TOKENS = 6000;
+
+function decodeHeader(v: string | null) {
+  const raw = (v ?? '').trim();
+  try {
+    return decodeURIComponent(raw).trim();
+  } catch {
+    return raw;
+  }
+}
+
+/** 한국 시간 기준 날짜 */
+const todayKST = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+const dailyLimit = (env: Env) => Math.max(0, Number(env.DAILY_SEARCH_LIMIT ?? '20') || 20);
+
+async function quota(env: Env, op: 'get' | 'incr') {
+  const stub = env.ROOMS.get(env.ROOMS.idFromName(`quota:${todayKST()}`));
+  const r = await stub.fetch(`https://room/${op === 'incr' ? 'incr' : 'count'}`, { method: op === 'incr' ? 'POST' : 'GET' });
+  const j = (await r.json()) as { count: number };
+  return j.count;
+}
+
+const errJson = (type: string, message: string, status: number, h: Record<string, string>) =>
+  json({ type: 'error', error: { type, message: `${message} (${type})` } }, status, h);
+
 async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>) {
   if (!passcodeOk(req, env)) {
     return json({ type: 'error', error: { type: 'passcode_error', message: '앱 접속 코드가 올바르지 않습니다. (passcode_error)' } }, 401, h);
@@ -78,19 +109,57 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
   }
   body.max_tokens = Math.min(Number(body.max_tokens) || MAX_TOKENS_CAP, MAX_TOKENS_CAP);
 
+  // ── AI 검색(웹 도구) 요청: 검색 코드·하루 횟수 확인 + 비용 절감 설정 강제 ──
+  const tools = Array.isArray(body.tools) ? (body.tools as { type?: string }[]) : [];
+  const usesWeb = tools.some((t) => /web_(search|fetch)/.test(String(t?.type)));
+  let betaHeader = req.headers.get('anthropic-beta');
+  if (usesWeb) {
+    const code = (env.SEARCH_CODE ?? '').trim();
+    if (!code) return errJson('search_disabled', 'AI 검색이 꺼져 있습니다. 관리자가 AI 검색 코드를 등록해야 합니다.', 403, h);
+    if (!safeEqual(decodeHeader(req.headers.get('x-search-code')), code)) {
+      return errJson('search_code_error', 'AI 검색 코드가 올바르지 않습니다.', 403, h);
+    }
+    // 한 번의 검색에서 이어지는 요청(pause_turn 계속)은 횟수에 넣지 않음
+    if (req.headers.get('x-cc-round') !== 'continue') {
+      const used = await quota(env, 'incr');
+      if (used > dailyLimit(env)) {
+        return errJson('daily_limit', `오늘 AI 검색 횟수(하루 ${dailyLimit(env)}회)를 모두 썼습니다.`, 429, h);
+      }
+    }
+    body.model = CHEAP_MODEL;
+    body.tools = tools.map((t) => {
+      if (/web_search/.test(String(t.type))) return { type: 'web_search_20250305', name: 'web_search', max_uses: SEARCH_MAX_USES };
+      if (/web_fetch/.test(String(t.type)))
+        return { type: 'web_fetch_20250910', name: 'web_fetch', max_uses: SEARCH_MAX_USES, max_content_tokens: FETCH_MAX_TOKENS };
+      return t;
+    });
+    delete body.fallbacks; // Haiku는 서버측 폴백 미지원
+    body.output_config = { effort: 'low' };
+    body.max_tokens = Math.min(Number(body.max_tokens), 8000);
+    betaHeader = (betaHeader ?? '')
+      .split(',')
+      .map((x) => x.trim())
+      .filter((x) => x && !x.startsWith('server-side-fallback'))
+      .join(',');
+  }
+
   const headers: Record<string, string> = {
     'content-type': 'application/json',
     'x-api-key': (env.ANTHROPIC_API_KEY ?? '').trim(),
     'anthropic-version': req.headers.get('anthropic-version') ?? '2023-06-01',
   };
-  const beta = req.headers.get('anthropic-beta');
-  if (beta) headers['anthropic-beta'] = beta;
+  if (betaHeader) headers['anthropic-beta'] = betaHeader;
 
-  const upstream = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const send = () => fetch('https://api.anthropic.com/v1/messages', { method: 'POST', headers, body: JSON.stringify(body) });
+  let upstream = await send();
+  // Haiku에서 web_fetch가 거부되면 웹 검색만으로 한 번 다시 시도
+  if (usesWeb && upstream.status === 400) {
+    const text = await upstream.clone().text();
+    if (/web_fetch/i.test(text)) {
+      body.tools = (body.tools as { type?: string }[]).filter((t) => !/web_fetch/.test(String(t.type)));
+      upstream = await send();
+    }
+  }
   if (upstream.status === 401 || upstream.status === 403) {
     // 서버에 등록된 Anthropic 키 문제 – 접속 코드 문제와 구분되게 502로 알리고, Anthropic이 준 이유를 함께 전달
     let reason = '';
@@ -127,9 +196,41 @@ export default {
 
     if (url.pathname === '/health') return json({ ok: true, ai: !!env.ANTHROPIC_API_KEY }, 200, h);
 
+    // 오늘 AI 검색 사용량
+    if (url.pathname === '/quota' && req.method === 'GET') {
+      if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
+      return json({ used: await quota(env, 'get'), limit: dailyLimit(env), searchEnabled: !!(env.SEARCH_CODE ?? '').trim() }, 200, h);
+    }
+
+    // 검색 결과 저장소(캐시): 한 번 찾은 제품은 다시 AI를 부르지 않음 (60일 보관)
+    const cm = url.pathname.match(/^\/cache\/([a-f0-9]{64})$/);
+    if (cm) {
+      if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
+      const stub = env.ROOMS.get(env.ROOMS.idFromName(`cache:${cm[1]}`));
+      if (req.method === 'GET') {
+        const r = await stub.fetch('https://room/doc');
+        if (r.status === 404) return json({ hit: false }, 200, h);
+        const st = (await r.json()) as { doc: unknown; updatedAt: number };
+        if (Date.now() - st.updatedAt > 60 * 86400_000) return json({ hit: false }, 200, h);
+        return json({ hit: true, ...(st.doc as object), savedAt: st.updatedAt }, 200, h);
+      }
+      if (req.method === 'PUT') {
+        const body = await req.text();
+        if (body.length > MAX_DOC_BYTES) return json({ error: 'too large' }, 413, h);
+        await stub.fetch('https://room/doc', { method: 'PUT', body });
+        return json({ ok: true }, 200, h);
+      }
+    }
+
     // 설정 화면의 "접속 코드 확인" 버튼용 (요금 없음)
     if (url.pathname === '/auth-check' && req.method === 'POST') {
-      return json({ ok: passcodeOk(req, env), ai: !!env.ANTHROPIC_API_KEY }, 200, h);
+      const sc = (env.SEARCH_CODE ?? '').trim();
+      const sGiven = decodeHeader(req.headers.get('x-search-code'));
+      return json(
+        { ok: passcodeOk(req, env), ai: !!env.ANTHROPIC_API_KEY, searchEnabled: !!sc, searchOk: !!sc && !!sGiven && safeEqual(sGiven, sc) },
+        200,
+        h,
+      );
     }
 
     if (url.pathname === '/anthropic/v1/messages' && req.method === 'POST') return proxyAnthropic(req, env, h);
@@ -217,6 +318,15 @@ export class Room implements DurableObject {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname === '/incr' || url.pathname === '/count') {
+      // 하루 검색 횟수 카운터 (DO는 한 번에 하나씩 처리하므로 안전하게 증가)
+      let count = (await this.ctx.storage.get<number>('count')) ?? 0;
+      if (url.pathname === '/incr') {
+        count += 1;
+        await this.ctx.storage.put('count', count);
+      }
+      return new Response(JSON.stringify({ count }), { headers: { 'content-type': 'application/json' } });
+    }
     if (url.pathname === '/ws') {
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
