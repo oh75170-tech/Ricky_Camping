@@ -51,6 +51,9 @@ npx wrangler deploy                         # → https://ricky-camping-server.<
 2. Settings → Secrets and variables → Actions → Variables 에 `API_BASE` = 서버 주소
 3. `main` 브랜치에 병합하면 자동 배포 → `https://oh75170-tech.github.io/Ricky_Camping/`
 
+## 서버
+- 배포 주소: https://ricky-camping-server.oh75170.workers.dev (앱 기본값)
+
 ## AI 기능
 - **서버 경유(기본)**: 설정에 접속 코드만 입력. 실제 API 키는 서버 비밀값에만 있습니다.
 - **개인 API 키**: 서버 없이 본인 키로 직접 호출 (본인 기기 전용).

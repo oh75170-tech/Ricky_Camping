@@ -78,7 +78,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
         selected: [],
         busy: false,
         blocked: 'nokey',
-        status: `AI가 아직 연결되지 않아 자동 검색을 할 수 없어요. (${t})\n· 설정에서 AI 접속 코드(서버 배포 후) 또는 개인 Anthropic API 키를 넣으면 자동으로 찾아 드려요.\n· 지금은 "브라우저에서 검색"으로 찾아보고 "직접 입력"으로 추가할 수 있어요.`,
+        status: `AI가 아직 연결되지 않아 자동 검색을 할 수 없어요. (${t})\n· 설정(⚙️)에서 "AI 접속 코드"를 넣으면 자동으로 찾아 드려요.\n· 지금은 "브라우저에서 검색"으로 찾아보고 "직접 입력"으로 추가할 수 있어요.`,
       });
       return;
     }
