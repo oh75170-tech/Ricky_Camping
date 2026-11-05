@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { MODELS } from '../ai';
+import { checkPasscode, MODELS } from '../ai';
 import { DEFAULT_SERVER } from '../config';
 import { actions, useStore } from '../store';
 import { Modal } from './Modal';
@@ -8,6 +8,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
   const [d, setD] = useState(settings);
   const envServer = (import.meta.env.VITE_API_BASE as string | undefined) || DEFAULT_SERVER;
+  const [check, setCheck] = useState<string | null>(null);
   const set = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => setD((x) => ({ ...x, [k]: v }));
 
   return (
@@ -30,9 +31,37 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         {d.aiMode === 'server' ? (
           <label>
             AI 접속 코드
-            <input type="password" value={d.passcode} onChange={(e) => set('passcode', e.target.value)} placeholder="관리자에게 받은 코드" autoComplete="off" />
+            <input type="password" value={d.passcode} onChange={(e) => (set('passcode', e.target.value), setCheck(null))} placeholder="관리자에게 받은 코드" autoComplete="off" />
           </label>
-        ) : (
+        ) : null}
+        {d.aiMode === 'server' && (
+          <div className="row">
+            <button
+              type="button"
+              className="btn small"
+              disabled={!d.passcode.trim()}
+              onClick={async () => {
+                setCheck('확인 중…');
+                // 입력한 서버 주소로 확인하도록 잠시 반영
+                actions.setSettings({ serverUrl: d.serverUrl.trim() });
+                const r = await checkPasscode(d.passcode);
+                setCheck(
+                  r === 'ok'
+                    ? '✔ 접속 코드가 맞아요.'
+                    : r === 'wrong'
+                      ? '✘ 접속 코드가 서버와 달라요. GitHub에 등록한 APP_PASSCODE 값과 똑같이(대소문자 포함) 입력해주세요.'
+                      : r === 'offline'
+                        ? '✘ 서버에 연결하지 못했어요. 인터넷 연결을 확인해주세요.'
+                        : '✘ 서버 주소가 없어요.',
+                );
+              }}
+            >
+              접속 코드 확인
+            </button>
+            {check && <span className="small">{check}</span>}
+          </div>
+        )}
+        {d.aiMode !== 'server' && (
           <label>
             Anthropic API 키
             <input type="password" value={d.apiKey} onChange={(e) => set('apiKey', e.target.value)} placeholder="sk-ant-..." autoComplete="off" />
