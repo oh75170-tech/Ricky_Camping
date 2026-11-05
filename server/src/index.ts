@@ -49,12 +49,23 @@ function newRoomId() {
   return [...bytes].map((b) => abc[b % abc.length]).join('');
 }
 
-async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>) {
-  // 접속 코드는 x-api-key 또는 Authorization: Bearer 로 올 수 있음
+/** 접속 코드 비교: 앞뒤 공백 무시, 한글 등은 앱이 URL 인코딩해서 보냄 */
+function passcodeOk(req: Request, env: Env) {
   const bearer = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
-  const given = req.headers.get('x-api-key') || bearer;
-  if (!safeEqual(given, env.APP_PASSCODE)) {
-    return json({ type: 'error', error: { type: 'authentication_error', message: '앱 접속 코드가 올바르지 않습니다.' } }, 401, h);
+  const raw = (req.headers.get('x-api-key') || bearer).trim();
+  let decoded = raw;
+  try {
+    decoded = decodeURIComponent(raw);
+  } catch {
+    /* 인코딩 안 된 값 */
+  }
+  const want = (env.APP_PASSCODE ?? '').trim();
+  return safeEqual(raw, want) || safeEqual(decoded.trim(), want);
+}
+
+async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>) {
+  if (!passcodeOk(req, env)) {
+    return json({ type: 'error', error: { type: 'passcode_error', message: '앱 접속 코드가 올바르지 않습니다. (passcode_error)' } }, 401, h);
   }
   let body: Record<string, unknown>;
   try {
@@ -80,6 +91,14 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
     headers,
     body: JSON.stringify(body),
   });
+  if (upstream.status === 401 || upstream.status === 403) {
+    // 서버에 등록된 Anthropic 키 문제 – 접속 코드 문제와 구분되게 502로 알림
+    return json(
+      { type: 'error', error: { type: 'upstream_auth', message: '서버에 등록된 Anthropic API 키가 올바르지 않거나 권한이 없습니다. (upstream_auth)' } },
+      502,
+      h,
+    );
+  }
   const out = new Headers(h);
   const ct = upstream.headers.get('content-type');
   if (ct) out.set('content-type', ct);
@@ -95,6 +114,11 @@ export default {
     if (req.method === 'OPTIONS') return new Response(null, { status: 204, headers: h });
 
     if (url.pathname === '/health') return json({ ok: true, ai: !!env.ANTHROPIC_API_KEY }, 200, h);
+
+    // 설정 화면의 "접속 코드 확인" 버튼용 (요금 없음)
+    if (url.pathname === '/auth-check' && req.method === 'POST') {
+      return json({ ok: passcodeOk(req, env), ai: !!env.ANTHROPIC_API_KEY }, 200, h);
+    }
 
     if (url.pathname === '/anthropic/v1/messages' && req.method === 'POST') return proxyAnthropic(req, env, h);
 

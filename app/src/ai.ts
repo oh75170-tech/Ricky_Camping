@@ -24,11 +24,25 @@ function client() {
     if (!base) throw new NoKeyError('설정에서 서버 주소를 입력해주세요.');
     if (!passcode) throw new NoKeyError();
     // 서버가 실제 API 키를 붙여 Anthropic으로 전달합니다. 브라우저에는 접속 코드만 저장됩니다.
-    return new Anthropic({ apiKey: passcode, baseURL: `${base}/anthropic`, dangerouslyAllowBrowser: true });
+    // 한글·공백이 있어도 헤더로 보낼 수 있게 인코딩 (서버에서 복원)
+    return new Anthropic({ apiKey: encodeURIComponent(passcode.trim()), baseURL: `${base}/anthropic`, dangerouslyAllowBrowser: true });
   }
   if (!apiKey) throw new NoKeyError();
   // 개인 키 직접 모드: 키는 이 기기(localStorage)에만 저장되어 브라우저에서 직접 호출합니다.
   return new Anthropic({ apiKey, dangerouslyAllowBrowser: true });
+}
+
+/** 설정 화면에서 접속 코드가 맞는지 서버에 확인 (요금 없음) */
+export async function checkPasscode(code: string): Promise<'ok' | 'wrong' | 'noserver' | 'offline'> {
+  const base = serverUrl();
+  if (!base) return 'noserver';
+  try {
+    const r = await fetch(`${base}/auth-check`, { method: 'POST', headers: { 'x-api-key': encodeURIComponent(code.trim()) } });
+    const j = (await r.json()) as { ok?: boolean };
+    return j.ok ? 'ok' : 'wrong';
+  } catch {
+    return 'offline';
+  }
 }
 
 /** AI를 쓸 준비가 됐는지 (서버+접속코드, 또는 개인 키) */

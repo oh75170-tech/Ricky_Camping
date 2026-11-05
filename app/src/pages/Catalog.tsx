@@ -124,8 +124,10 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
       const msg = (e as Error).message ?? '';
       const friendly = /connection error|failed to fetch|network/i.test(msg)
         ? '서버에 연결하지 못했어요. 인터넷 연결을 확인하고 잠시 후 다시 시도해주세요.'
-        : /401|접속 코드/.test(msg)
-          ? 'AI 접속 코드가 맞지 않아요. 설정(⚙️)에서 접속 코드를 다시 확인해주세요.'
+        : /upstream_auth/.test(msg)
+          ? '서버에 등록된 Anthropic API 키에 문제가 있어요. GitHub Secrets의 ANTHROPIC_API_KEY를 다시 확인해주세요. (접속 코드 문제는 아니에요)'
+          : /passcode_error|접속 코드/.test(msg)
+            ? 'AI 접속 코드가 맞지 않아요. 설정(⚙️)의 "접속 코드 확인" 버튼으로 확인해주세요.'
           : /429|rate/i.test(msg)
             ? '요청이 많아 잠시 막혔어요. 1분 정도 뒤에 다시 시도해주세요.'
             : `오류: ${msg}`;
