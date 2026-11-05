@@ -101,7 +101,7 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
       /* 본문 없음 */
     }
     const k = (env.ANTHROPIC_API_KEY ?? '').trim();
-    const hint = `키 길이 ${k.length}자, 시작 "${k.slice(0, 7)}…"`;
+    const hint = `키 길이 ${k.length}자(정상 키는 100자 이상), 시작 ${k.slice(0, 7)}…`;
     return json(
       {
         type: 'error',
