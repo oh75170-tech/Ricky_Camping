@@ -9,6 +9,8 @@ export interface Settings {
   passcode: string;
   serverUrl: string;
   model: string;
+  /** 내 데이터 서버 동기화 코드 (비어 있으면 동기화 안 함) */
+  syncCode: string;
 }
 
 export interface AppState {
@@ -49,7 +51,7 @@ const defaults: AppState = {
   },
   campsite: { w: 12, h: 10, name: '', confirmed: false },
   seedVersion: 0,
-  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5' },
+  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '' },
 };
 
 function load(): AppState {
