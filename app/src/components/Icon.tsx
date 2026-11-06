@@ -39,6 +39,9 @@ const P: Record<string, string> = {
   copy: 'M8 8h12v12H8zM4 16V4h12',
   front: 'M8 8h12v12H8z M4 4h10v2M4 4v10h2',
   backw: 'M4 4h12v12H4z M20 8v12H8v-2',
+  calendar: 'M4 6h16v14H4zM4 10h16M8 3v5M16 3v5',
+  pin: 'M12 21s-6-5.5-6-11a6 6 0 0 1 12 0c0 5.5-6 11-6 11zM12 7.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5z',
+  home: 'M3 11 12 4l9 7M5 10v10h14V10M10 20v-5h4v5',
   sync: 'M20 11a8 8 0 0 0-14.6-4.5L4 8M4 13a8 8 0 0 0 14.6 4.5L20 16M4 4v4h4M20 20v-4h-4',
 };
 

@@ -10,6 +10,7 @@ import { SpecTable } from '../components/SpecTable';
 import { SettingsModal } from '../components/SettingsModal';
 import { CampsiteModal } from '../components/CampsiteModal';
 import { CollabPanel } from '../components/CollabPanel';
+import { SaveTripModal } from '../components/SaveTripModal';
 import { Icon } from '../components/Icon';
 import { getSyncStatus, useSyncStatus } from '../sync';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
@@ -59,7 +60,8 @@ function suggestPosition(g: Gear, siteId: string, forceNewColumn: boolean) {
   return { x: s.campsite.w / 2 + jitter, y: s.campsite.h / 2 };
 }
 
-export function Planner({ onBack }: { onBack: () => void }) {
+export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip: (id: string) => void }) {
+  const [showTrip, setShowTrip] = useState(false);
   const canvasRef = useRef<CanvasHandle>(null);
   const [tab, setTab] = useState<Tab | null>('pick');
   const [selected, setSelected] = useState<string | null>(null);
@@ -148,6 +150,9 @@ export function Planner({ onBack }: { onBack: () => void }) {
           <span className="dot" style={{ background: site.color }} />
           {site.name}
         </button>
+        <button className="site-badge" onClick={() => setShowTrip(true)} disabled={!placements.length} title="지금 배치를 캠핑 일정에 저장">
+          <Icon name="calendar" size={14} /> 일정
+        </button>
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="설정">
           <Icon name="settings" />
         </button>
@@ -232,6 +237,7 @@ export function Planner({ onBack }: { onBack: () => void }) {
         {specOpen && <SpecTable selectedId={selected} onSelect={setSelected} />}
       </footer>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {showTrip && <SaveTripModal onClose={() => setShowTrip(false)} onOpenTrip={onOpenTrip} />}
       {showCampsite && (
         <CampsiteModal
           onClose={() => {

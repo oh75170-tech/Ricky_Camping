@@ -112,3 +112,59 @@ export interface LayerStyle {
   showDims: boolean;
   showLabels: boolean;
 }
+
+// ───────── 캠핑 일정 ─────────
+export type SiteFloor = 'crushed' | 'deck' | 'grass' | 'masato';
+export const SITE_FLOORS: { id: SiteFloor; label: string }[] = [
+  { id: 'crushed', label: '파쇄석' },
+  { id: 'deck', label: '데크' },
+  { id: 'grass', label: '잔디' },
+  { id: 'masato', label: '마사토' },
+];
+
+export interface Place {
+  name: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
+  /** 검색 출처 (gocamping / osm / manual) */
+  source?: 'gocamping' | 'osm' | 'manual';
+  tel?: string;
+  homepage?: string;
+  /** 고캠핑 등에서 가져온 사이트 정보 요약 */
+  info?: string;
+}
+
+/** 일정에 저장한 배치도 (그 시점의 사본) */
+export interface LayoutSnapshot {
+  savedAt: number;
+  sites: Site[];
+  placements: Placement[];
+  campsite: { w: number; h: number; name: string; confirmed: boolean };
+  /** 배치에 쓰인 직접 추가/수정 장비 (다른 기기·나중에도 보이도록) */
+  gear: Gear[];
+  /** 장비 목록 요약 (브랜드·이름·치수) */
+  gearList: { id: string; brand: string; name: string; category: Category; size: string; count: number }[];
+}
+
+export interface Trip {
+  id: string;
+  title: string;
+  startDate: string; // YYYY-MM-DD
+  endDate: string;
+  place: Place;
+  siteNo: string;
+  floor: SiteFloor | '';
+  /** 사이트 크기 (m) */
+  siteW?: number;
+  siteH?: number;
+  layout?: LayoutSnapshot;
+  memo?: string;
+  createdAt: number;
+}
+
+export interface HomePlace {
+  label: string;
+  lat: number;
+  lng: number;
+}

@@ -11,6 +11,8 @@ export interface Env {
   SEARCH_CODE?: string;
   /** 하루 AI 검색 횟수 제한 (기본 20) */
   DAILY_SEARCH_LIMIT?: string;
+  /** (선택) 공공데이터포털 한국관광공사 고캠핑 정보 서비스 키 */
+  GOCAMPING_KEY?: string;
   ALLOWED_ORIGINS: string;
   ROOMS: DurableObjectNamespace;
 }
@@ -188,6 +190,60 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
   return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 
+// ───────── 고캠핑 ─────────
+const FLOOR_FIELDS: [string, string][] = [
+  ['siteBottomCl1', '잔디'],
+  ['siteBottomCl2', '파쇄석'],
+  ['siteBottomCl3', '데크'],
+  ['siteBottomCl4', '자갈'],
+  ['siteBottomCl5', '맨흙'],
+];
+
+async function campSearch(keyword: string, env: Env, h: Record<string, string>) {
+  const key = (env.GOCAMPING_KEY ?? '').trim();
+  const kw = keyword.trim().slice(0, 50);
+  if (!key) return json({ enabled: false, items: [] }, 200, h);
+  if (!kw) return json({ enabled: true, items: [] }, 200, h);
+  // 키는 인코딩/디코딩 두 형태가 있어서, 이미 %가 있으면 그대로 사용
+  const sk = key.includes('%') ? key : encodeURIComponent(key);
+  const api = `https://apis.data.go.kr/B551011/GoCamping/searchList?serviceKey=${sk}&numOfRows=15&pageNo=1&MobileOS=ETC&MobileApp=CampCanvas&_type=json&keyword=${encodeURIComponent(kw)}`;
+  try {
+    const r = await fetch(api);
+    const text = await r.text();
+    if (!r.ok || text.trim().startsWith('<')) return json({ enabled: true, error: `gocamping_${r.status}`, items: [] }, 200, h);
+    const j = JSON.parse(text) as { response?: { body?: { items?: { item?: unknown } | '' } } };
+    const raw = j.response?.body?.items && typeof j.response.body.items === 'object' ? j.response.body.items.item : [];
+    const list = (Array.isArray(raw) ? raw : raw ? [raw] : []) as Record<string, string | number | undefined>[];
+    const num = (v: unknown) => (v === undefined || v === '' ? 0 : Number(v));
+    const items = list.map((x) => {
+      const sizes: { w: number; h: number; count?: number }[] = [];
+      for (const i of [1, 2, 3]) {
+        const w = num(x[`siteMg${i}Width`]);
+        const hh = num(x[`siteMg${i}Vrticl`]);
+        if (w > 0 && hh > 0) sizes.push({ w, h: hh, count: num(x[`siteMg${i}Co`]) || undefined });
+      }
+      const floors = FLOOR_FIELDS.filter(([k]) => num(x[k]) > 0).map(([, label]) => label);
+      const lat = num(x.mapY);
+      const lng = num(x.mapX);
+      return {
+        name: String(x.facltNm ?? ''),
+        address: [x.addr1, x.addr2].filter(Boolean).join(' '),
+        lat: lat || undefined,
+        lng: lng || undefined,
+        tel: x.tel ? String(x.tel) : undefined,
+        homepage: x.homepage ? String(x.homepage) : undefined,
+        info: x.lineIntro ? String(x.lineIntro) : undefined,
+        source: 'gocamping',
+        sizes,
+        floors,
+      };
+    });
+    return json({ enabled: true, items: items.filter((x) => x.name) }, 200, h);
+  } catch (e) {
+    return json({ enabled: true, error: String(e).slice(0, 200), items: [] }, 200, h);
+  }
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
@@ -231,6 +287,12 @@ export default {
         200,
         h,
       );
+    }
+
+    // 캠핑장 검색 (고캠핑 프록시, 키 없으면 enabled:false → 앱이 OpenStreetMap 사용)
+    if (url.pathname === '/camp/search' && req.method === 'GET') {
+      if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
+      return campSearch(url.searchParams.get('keyword') ?? '', env, h);
     }
 
     if (url.pathname === '/anthropic/v1/messages' && req.method === 'POST') return proxyAnthropic(req, env, h);

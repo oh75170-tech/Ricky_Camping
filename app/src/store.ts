@@ -1,6 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import { BUILTIN_GEAR, CORE_BRANDS, SEED_OWNED } from './data/gear';
-import type { Gear, LayerStyle, Placement, Site } from './types';
+import type { Gear, HomePlace, LayerStyle, Placement, Site, Trip } from './types';
 
 export interface Settings {
   /** server: 우리 서버 경유(키는 서버에 보관) / direct: 개인 API 키로 직접 호출 */
@@ -26,6 +26,8 @@ export interface AppState {
   layer: LayerStyle;
   campsite: { w: number; h: number; name: string; confirmed: boolean };
   seedVersion: number;
+  trips: Trip[];
+  home: HomePlace | null;
   settings: Settings;
 }
 
@@ -53,6 +55,8 @@ const defaults: AppState = {
   },
   campsite: { w: 12, h: 10, name: '', confirmed: false },
   seedVersion: 0,
+  trips: [],
+  home: null,
   settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '' },
 };
 
@@ -227,6 +231,15 @@ export const actions = {
   },
   setSettings(patch: Partial<Settings>) {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
+  },
+  saveTrip(t: Trip) {
+    setState((s) => ({ ...s, trips: s.trips.some((x) => x.id === t.id) ? s.trips.map((x) => (x.id === t.id ? t : x)) : [...s.trips, t] }));
+  },
+  removeTrip(id: string) {
+    setState((s) => ({ ...s, trips: s.trips.filter((x) => x.id !== id) }));
+  },
+  setHome(home: HomePlace | null) {
+    setState((s) => ({ ...s, home }));
   },
   clearLayout() {
     setState((s) => ({ ...s, placements: [] }));
