@@ -383,3 +383,8 @@ a.btn { text-decoration: none; }
 .viewer-nav.prev { left: 10px; }
 .viewer-nav.next { right: 10px; }
 .viewer-nav.next svg { transform: rotate(180deg); }
+.admin-box { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.admin-box input { padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); }
+.admin-list { max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.admin-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); font-size: 13px; color: var(--ink); }
+.admin-row:last-child { border-bottom: 0; }

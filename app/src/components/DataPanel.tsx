@@ -159,7 +159,7 @@ export function DataPanel() {
       </div>
       <div className="data-box">
         <b>처음 상태로 초기화</b>
-        <p className="muted small">보유·위시 목록, 직접 추가한 장비, 배치, 캠핑일정·사진, 집 위치를 모두 지워요. 설정(코드)과 공유 장비목록은 남아요. 내 데이터 동기화를 켜 두었다면 서버의 내 데이터도 비워져요.</p>
+        <p className="muted small">보유·위시 목록, 직접 추가한 장비, 배치, 캠핑일정·사진, 집 위치를 모두 지워요. 설정(코드)과 모두의 장비목록은 남아요. 내 데이터 동기화를 켜 두었다면 서버의 내 데이터도 비워져요.</p>
         <button
           type="button"
           className="btn small ghost danger"

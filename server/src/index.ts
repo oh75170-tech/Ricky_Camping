@@ -192,6 +192,50 @@ async function proxyAnthropic(req: Request, env: Env, h: Record<string, string>)
   return new Response(upstream.body, { status: upstream.status, headers: out });
 }
 
+// ───────── 모두의 장비목록 ─────────
+const GEAR_ID = /^[\w-]{1,64}$/;
+const CATS = new Set(['tent', 'tarp', 'table', 'chair', 'mat', 'cot', 'heater', 'fridge', 'etc']);
+const catalogStub = (env: Env) => env.ROOMS.get(env.ROOMS.idFromName('catalog:shared'));
+
+/** 올라온 장비에서 필요한 칸만, 길이 제한해서 남기기 */
+function cleanGear(x: unknown): Record<string, unknown> | null {
+  if (!x || typeof x !== 'object') return null;
+  const g = x as Record<string, unknown>;
+  const str = (v: unknown, n: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : undefined);
+  const num = (v: unknown) => (typeof v === 'number' && isFinite(v) && v >= 0 && v <= 10000 ? Math.round(v * 10) / 10 : undefined);
+  const sub = (v: unknown) => {
+    if (!v || typeof v !== 'object') return undefined;
+    const o = v as Record<string, unknown>;
+    const l = num(o.l);
+    const w = num(o.w);
+    return l && w ? { l, w, offset: typeof o.offset === 'number' && isFinite(o.offset) ? Math.max(-2000, Math.min(2000, o.offset)) : undefined } : undefined;
+  };
+  const id = str(g.id, 64);
+  const brand = str(g.brand, 60);
+  const name = str(g.name, 120);
+  const category = typeof g.category === 'string' && CATS.has(g.category) ? g.category : undefined;
+  const l = num(g.l);
+  const w = num(g.w);
+  if (!id || !GEAR_ID.test(id) || !brand || !name || !category || !l || !w) return null;
+  const out: Record<string, unknown> = {
+    id, brand, name, category, l, w, h: num(g.h) ?? 0,
+    model: str(g.model, 80), material: str(g.material, 200), weight: str(g.weight, 60),
+    shape: str(g.shape, 20), frame: str(g.frame, 20), style: str(g.style, 20),
+    frameCount: num(g.frameCount), units: num(g.units), flat: num(g.flat),
+    inner: sub(g.inner), ground: sub(g.ground),
+    verified: typeof g.verified === 'boolean' ? g.verified : undefined,
+    note: str(g.note, 500), source: str(g.source, 300),
+  };
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  return out;
+}
+
+interface CatItem {
+  gear: Record<string, unknown>;
+  by: string;
+  at: number;
+}
+
 // ───────── 고캠핑 ─────────
 const FLOOR_FIELDS: [string, string][] = [
   ['siteBottomCl1', '잔디'],
@@ -291,32 +335,43 @@ export default {
       );
     }
 
-    // 공유 장비목록: 누구나 읽기, 관리자 코드로만 올리기
-    if (url.pathname === '/catalog') {
-      const stub = env.ROOMS.get(env.ROOMS.idFromName('catalog:shared'));
-      if (req.method === 'GET') {
-        const r = await stub.fetch('https://room/doc');
-        if (r.status === 404) return json({ gear: [], brands: [], updatedAt: 0 }, 200, { ...h, 'cache-control': 'no-store' });
-        const st = (await r.json()) as { doc: object; updatedAt: number };
-        return json({ ...st.doc, updatedAt: st.updatedAt }, 200, { ...h, 'cache-control': 'no-store' });
+    // 모두의 장비목록: 누구나 읽기·추가, 고치기·지우기는 올린 사람(같은 기기 코드) 또는 관리자
+    if (url.pathname === '/catalog' && req.method === 'GET') {
+      const r = await catalogStub(env).fetch('https://room/cat/list');
+      return json(await r.json(), 200, { ...h, 'cache-control': 'no-store' });
+    }
+    if ((url.pathname === '/catalog/items' || url.pathname === '/catalog/delete') && req.method === 'POST') {
+      const want = (env.ADMIN_CODE ?? '').trim();
+      const given = decodeHeader(req.headers.get('x-admin-code'));
+      if (given && (!want || !safeEqual(given, want))) return json({ error: 'admin_code_error' }, 401, h);
+      const admin = !!given;
+      const body = await req.text();
+      if (body.length > MAX_DOC_BYTES) return json({ error: 'too large' }, 413, h);
+      let j: { by?: unknown; gear?: unknown; id?: unknown };
+      try {
+        j = JSON.parse(body);
+      } catch {
+        return json({ error: 'bad json' }, 400, h);
       }
-      if (req.method === 'PUT') {
-        const want = (env.ADMIN_CODE ?? '').trim();
-        if (!want) return json({ error: 'admin_disabled' }, 403, h);
-        if (!safeEqual(decodeHeader(req.headers.get('x-admin-code')), want)) return json({ error: 'admin_code_error' }, 401, h);
-        const body = await req.text();
-        if (body.length > MAX_DOC_BYTES * 2) return json({ error: 'too large' }, 413, h);
-        let doc: { gear?: unknown; brands?: unknown };
-        try {
-          doc = JSON.parse(body);
-        } catch {
-          return json({ error: 'bad json' }, 400, h);
-        }
-        if (!Array.isArray(doc.gear)) return json({ error: 'bad catalog' }, 400, h);
-        const clean = { gear: doc.gear, brands: Array.isArray(doc.brands) ? doc.brands : [] };
-        await stub.fetch('https://room/doc', { method: 'PUT', body: JSON.stringify(clean) });
-        return json({ ok: true, count: doc.gear.length }, 200, h);
+      const by = typeof j.by === 'string' && /^[a-z0-9]{12,40}$/.test(j.by) ? j.by : '';
+      if (!by && !admin) return json({ error: 'bad contributor' }, 400, h);
+      if (url.pathname === '/catalog/delete') {
+        if (typeof j.id !== 'string' || !GEAR_ID.test(j.id)) return json({ error: 'bad id' }, 400, h);
+        const r = await catalogStub(env).fetch('https://room/cat/delete', { method: 'POST', body: JSON.stringify({ id: j.id, by, admin }) });
+        return json(await r.json(), r.status, h);
       }
+      if (!Array.isArray(j.gear)) return json({ error: 'bad gear' }, 400, h);
+      const max = admin ? 300 : 30;
+      const items = j.gear.slice(0, max).map(cleanGear).filter((g): g is Record<string, unknown> => !!g);
+      if (!admin) {
+        // 같은 곳에서 하루에 너무 많이 올리지 못하게 (장난 방지)
+        const ip = req.headers.get('CF-Connecting-IP') ?? 'unknown';
+        const q = env.ROOMS.get(env.ROOMS.idFromName(`addq:${todayKST()}:${ip}`));
+        const c = (await (await q.fetch('https://room/incr', { method: 'POST' })).json()) as { count: number };
+        if (c.count > 60) return json({ error: 'daily_limit' }, 429, h);
+      }
+      const r = await catalogStub(env).fetch('https://room/cat/upsert', { method: 'POST', body: JSON.stringify({ by, admin, items }) });
+      return json(await r.json(), 200, h);
     }
 
     // 캠핑장 검색 (고캠핑 프록시, 키 없으면 enabled:false → 앱이 OpenStreetMap 사용)
@@ -418,6 +473,41 @@ export class Room implements DurableObject {
         await this.ctx.storage.put('count', count);
       }
       return new Response(JSON.stringify({ count }), { headers: { 'content-type': 'application/json' } });
+    }
+    // 모두의 장비목록 (장비마다 따로 저장: item:<id>)
+    if (url.pathname === '/cat/list') {
+      const map = await this.ctx.storage.list<CatItem>({ prefix: 'item:' });
+      const gear = [...map.values()].sort((a, b) => a.at - b.at).map((x) => x.gear);
+      return Response.json({ gear, updatedAt: (await this.ctx.storage.get<number>('catUpdated')) ?? 0 });
+    }
+    if (url.pathname === '/cat/upsert') {
+      const { by, admin, items } = (await req.json()) as { by: string; admin: boolean; items: Record<string, unknown>[] };
+      let saved = 0;
+      let skipped = 0;
+      const now = Date.now();
+      for (const g of items) {
+        const key = `item:${g.id}`;
+        const cur = await this.ctx.storage.get<CatItem>(key);
+        if (cur && cur.by !== by && !admin) {
+          skipped++;
+          continue;
+        }
+        if (cur && JSON.stringify(cur.gear) === JSON.stringify(g)) continue;
+        await this.ctx.storage.put(key, { gear: g, by: cur?.by ?? by ?? 'admin', at: cur?.at ?? now } satisfies CatItem);
+        saved++;
+      }
+      if (saved) await this.ctx.storage.put('catUpdated', now);
+      return Response.json({ ok: true, saved, skipped });
+    }
+    if (url.pathname === '/cat/delete') {
+      const { id, by, admin } = (await req.json()) as { id: string; by: string; admin: boolean };
+      const key = `item:${id}`;
+      const cur = await this.ctx.storage.get<CatItem>(key);
+      if (!cur) return Response.json({ ok: true, deleted: false });
+      if (!admin && cur.by !== by) return Response.json({ error: 'not_owner' }, { status: 403 });
+      await this.ctx.storage.delete(key);
+      await this.ctx.storage.put('catUpdated', Date.now());
+      return Response.json({ ok: true, deleted: true });
     }
     if (url.pathname === '/ws') {
       const pair = new WebSocketPair();

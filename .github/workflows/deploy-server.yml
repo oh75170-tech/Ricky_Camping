@@ -6,7 +6,7 @@ name: Deploy server to Cloudflare Workers
 #   ANTHROPIC_API_KEY      Anthropic API 키 (AI 기능용)
 #   APP_PASSCODE           앱 설정에 입력할 AI 접속 코드 (직접 정한 문자열)
 #   SEARCH_CODE            (선택) AI 검색 전용 코드 – 없으면 AI 검색이 꺼짐
-#   ADMIN_CODE             (선택) 앱에서 '장비목록 공유'를 올릴 때 쓰는 관리자 코드 (직접 정한 문자열)
+#   ADMIN_CODE             (선택) 모두의 장비목록에서 장비를 지울 때 쓰는 관리자 코드 (직접 정한 문자열)
 #   GOCAMPING_KEY          (선택) 공공데이터포털 고캠핑 서비스 키 – 없으면 캠핑장 검색은 OpenStreetMap 사용
 on:
   workflow_dispatch:
@@ -66,7 +66,7 @@ jobs:
           if [ -n "${{ secrets.ADMIN_CODE }}" ]; then
             printf '%s' "${{ secrets.ADMIN_CODE }}" | npx wrangler secret put ADMIN_CODE
           else
-            echo "::notice::ADMIN_CODE가 없어 장비목록 공유 올리기는 꺼진 상태입니다."
+            echo "::notice::ADMIN_CODE가 없어 관리자 삭제 기능은 꺼진 상태입니다."
           fi
           if [ -n "${{ secrets.GOCAMPING_KEY }}" ]; then
             printf '%s' "${{ secrets.GOCAMPING_KEY }}" | npx wrangler secret put GOCAMPING_KEY
