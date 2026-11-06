@@ -1,4 +1,5 @@
 import { useStore } from '../store';
+import { dday, fmtTripDates, isPastTrip } from '../trips';
 import { Icon } from '../components/Icon';
 import { IS_PREVIEW } from '../env';
 import { isNativeApp } from '../share';
@@ -6,9 +7,11 @@ import illust from '../assets/home-illust.webp';
 
 const INSTAGRAM = 'https://www.instagram.com/ricky_camping/';
 
-export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
+export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: string) => void }) {
   const owned = useStore((s) => s.owned.length);
   const placed = useStore((s) => s.placements.length);
+  const trips = useStore((s) => s.trips);
+  const next = trips.filter((t) => !isPastTrip(t)).sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
   return (
     <div className="home">
       <div className="home-hero">
@@ -40,6 +43,25 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner') => void }) {
           </span>
           {placed > 0 && <em>{placed}</em>}
         </button>
+        <button className="home-card" onClick={() => (next ? go('trips', next.id) : go('trips'))}>
+          <span className="home-icon"><Icon name="calendar" size={30} stroke={1.3} /></span>
+          <span>
+            <b>캠핑일정</b>
+            {next ? (
+              <small>
+                <strong>{dday(next)}</strong> {next.title || next.place.name || '다음 캠핑'} · {fmtTripDates(next)}
+              </small>
+            ) : (
+              <small>캠핑장 검색·지도·가는 시간·날씨 · 배치도와 장비 목록 저장</small>
+            )}
+          </span>
+          {trips.length > 0 && <em>{trips.length}</em>}
+        </button>
+        {next && (
+          <button className="linklike home-trips-all" onClick={() => go('trips')}>
+            전체 일정 보기
+          </button>
+        )}
       </div>
       {!IS_PREVIEW && !isNativeApp() && (
         <section className="install-box">

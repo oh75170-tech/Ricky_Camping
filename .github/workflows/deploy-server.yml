@@ -6,6 +6,7 @@ name: Deploy server to Cloudflare Workers
 #   ANTHROPIC_API_KEY      Anthropic API 키 (AI 기능용)
 #   APP_PASSCODE           앱 설정에 입력할 AI 접속 코드 (직접 정한 문자열)
 #   SEARCH_CODE            (선택) AI 검색 전용 코드 – 없으면 AI 검색이 꺼짐
+#   GOCAMPING_KEY          (선택) 공공데이터포털 고캠핑 서비스 키 – 없으면 캠핑장 검색은 OpenStreetMap 사용
 on:
   workflow_dispatch:
   push:
@@ -60,6 +61,11 @@ jobs:
             printf '%s' "${{ secrets.SEARCH_CODE }}" | npx wrangler secret put SEARCH_CODE
           else
             echo "::warning::SEARCH_CODE가 없어 AI 검색은 꺼진 상태로 배포됩니다."
+          fi
+          if [ -n "${{ secrets.GOCAMPING_KEY }}" ]; then
+            printf '%s' "${{ secrets.GOCAMPING_KEY }}" | npx wrangler secret put GOCAMPING_KEY
+          else
+            echo "::notice::GOCAMPING_KEY가 없어 캠핑장 검색은 OpenStreetMap으로 동작합니다."
           fi
       - name: Health check
         if: steps.check.outputs.ready == 'true'

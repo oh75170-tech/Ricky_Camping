@@ -4,7 +4,7 @@ import { serverUrl } from './config';
 import { IS_PREVIEW } from './env';
 
 /** 백업·동기화 대상 (설정·키는 제외) */
-const DATA_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'sites', 'placements', 'campsite', 'layer', 'seedVersion'] as const;
+const DATA_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'sites', 'placements', 'campsite', 'layer', 'seedVersion', 'trips', 'home'] as const;
 type DataKey = (typeof DATA_KEYS)[number];
 export type UserData = Pick<AppState, DataKey>;
 

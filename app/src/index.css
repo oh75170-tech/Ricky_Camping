@@ -304,3 +304,52 @@ a.btn { text-decoration: none; }
 .search-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .search-actions .btn { flex: 1 1 auto; }
 .btn.disabled { opacity: .5; pointer-events: none; }
+
+/* ───────── 캠핑 일정 ───────── */
+.linklike { border: 0; background: none; padding: 0; color: var(--ink); text-decoration: underline; font-size: 13px; }
+.home-trips-all { justify-self: end; margin-top: -6px; color: var(--muted); }
+.home-card small strong { font-weight: 800; margin-right: 4px; }
+.trips-body { max-width: 760px; }
+.trip-h { font-size: 15px; margin: 18px 4px 8px; }
+.trip-list { display: flex; flex-direction: column; gap: 10px; }
+.trip-card { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--card); }
+.trip-card.past { background: var(--soft); }
+.trip-card .chev { transform: rotate(180deg); color: var(--muted); flex: none; }
+.trip-dday { flex: none; min-width: 58px; text-align: center; font-weight: 800; font-size: 13px; padding: 8px 4px; border-radius: 10px; background: var(--ink); color: #fff; }
+.trip-card.past .trip-dday { background: transparent; color: var(--muted); border: 1px solid var(--line); }
+.trip-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.trip-main b { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trip-main small { color: var(--muted); font-size: 12.5px; }
+.trip-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.trip-tags span { border: 1px solid var(--line); border-radius: 999px; padding: 1px 8px; font-size: 11.5px; background: #fff; }
+.trip-tags span.on { background: var(--ink); color: #fff; border-color: var(--ink); }
+.empty-box { text-align: center; padding: 50px 16px; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.empty-box p { line-height: 1.6; margin: 0; }
+.trip-sec { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; margin-bottom: 12px; }
+.trip-sec h3 { margin: 0 0 10px; font-size: 15px; display: flex; align-items: center; gap: 6px; }
+.row.nowrap { flex-wrap: nowrap; }
+.row.nowrap > * { min-width: 0; }
+.size-inputs input { flex: 1; min-width: 0; }
+.size-inputs span { flex: none; color: var(--ink); }
+.place-results { display: flex; flex-direction: column; gap: 6px; max-height: 340px; overflow: auto; padding: 2px; }
+.place-item { display: flex; flex-direction: column; gap: 2px; text-align: left; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 10px 12px; color: var(--ink); }
+.place-item b { font-size: 14px; }
+.place-item span { font-size: 12px; color: var(--muted); line-height: 1.4; }
+.place-item:active { background: var(--soft); }
+.place-info { color: var(--ink); background: var(--soft); border-radius: 10px; padding: 10px; }
+.place-info p { margin: 0 0 8px; }
+.trip-map { width: 100%; height: 260px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line); background: #eee; z-index: 0; position: relative; }
+.trip-map .leaflet-tile-pane { filter: grayscale(1) contrast(1.05); }
+.route-box { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; font-size: 14px; }
+.route-box p { margin: 0; }
+.weather-row { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: 8px; margin-top: 8px; }
+.weather-day { border: 1px solid var(--line); border-radius: 12px; padding: 10px 6px; display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 13px; text-align: center; }
+.weather-day small { color: var(--muted); font-size: 11.5px; }
+.weather-day .w-icon { font-size: 26px; line-height: 1.2; filter: grayscale(1); }
+.trip-gear { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+.trip-gear th, .trip-gear td { border-bottom: 1px solid var(--line); padding: 7px 4px; text-align: left; vertical-align: top; }
+.trip-gear th { color: var(--muted); font-weight: 600; font-size: 12px; }
+.trip-gear td:nth-child(1) { white-space: nowrap; color: var(--muted); }
+.trip-gear td:nth-child(3), .trip-gear td:nth-child(4) { white-space: nowrap; }
+.trip-memo { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; color: var(--ink); background: #fff; resize: vertical; }
+.site-badge:disabled { opacity: .45; }
