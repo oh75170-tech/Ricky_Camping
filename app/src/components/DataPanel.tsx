@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { actions, useStore } from '../store';
-import { applyData, makeBackup, readBackup, resolveConflict, syncNow, useCloudStatus, type UserData } from '../cloud';
+import { applyBackup, makeBackup, readBackup, type BackupFile, resolveConflict, syncNow, useCloudStatus } from '../cloud';
 import { downloadBlob } from '../share';
 import { IS_PREVIEW } from '../env';
 import { Icon } from './Icon';
@@ -12,7 +12,7 @@ export function DataPanel() {
   const cloud = useCloudStatus();
   const [draft, setDraft] = useState(code);
   const [msg, setMsg] = useState<string | null>(null);
-  const [pending, setPending] = useState<{ name: string; data: UserData } | null>(null);
+  const [pending, setPending] = useState<({ name: string } & BackupFile) | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const time = (t: number | null) => (t ? new Date(t).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) : '');
@@ -99,7 +99,7 @@ export function DataPanel() {
               const d = new Date();
               const name = `campcanvas-backup-${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}.json`;
               try {
-                const where = await downloadBlob(makeBackup(), name);
+                const where = await downloadBlob(await makeBackup(), name);
                 setMsg(where ? `백업을 저장했어요: ${where} 폴더의 ${name}` : `백업 파일(${name})을 저장했어요.`);
               } catch (e) {
                 setMsg(`저장 실패: ${(e as Error).message}`);
@@ -122,7 +122,7 @@ export function DataPanel() {
               e.target.value = '';
               if (!f) return;
               try {
-                setPending({ name: f.name, data: await readBackup(f) });
+                setPending({ name: f.name, ...(await readBackup(f)) });
                 setMsg(null);
               } catch (err) {
                 setMsg((err as Error).message);
@@ -133,7 +133,7 @@ export function DataPanel() {
         {IS_PREVIEW && <p className="muted small">미리보기에서는 파일 저장이 막혀 있어요. 설치한 앱에서 저장해주세요.</p>}
         {pending && (
           <div className="notice small">
-            <b>{pending.name}</b> · 장비 {pending.data.customGear.length}개 직접 추가, 보유 {pending.data.owned.length}개, 배치 {pending.data.placements.length}개
+            <b>{pending.name}</b> · 장비 {pending.data.customGear.length}개 직접 추가, 보유 {pending.data.owned.length}개, 배치 {pending.data.placements.length}개, 일정 {pending.data.trips?.length ?? 0}개{Object.keys(pending.photos).length ? `, 사진 ${Object.keys(pending.photos).length}장` : ''}
             <br />
             불러오면 지금 이 기기의 장비·보유목록·배치가 백업 내용으로 바뀝니다.
             <div className="form-actions" style={{ marginTop: 8 }}>
@@ -143,8 +143,8 @@ export function DataPanel() {
               <button
                 type="button"
                 className="btn small primary"
-                onClick={() => {
-                  applyData(pending.data);
+                onClick={async () => {
+                  await applyBackup(pending);
                   setPending(null);
                   setMsg('백업을 불러왔어요.');
                 }}

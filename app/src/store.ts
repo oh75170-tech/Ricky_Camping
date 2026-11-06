@@ -28,6 +28,8 @@ export interface AppState {
   seedVersion: number;
   trips: Trip[];
   home: HomePlace | null;
+  /** 캠핑장별 자리번호 → 사이트 크기 기억 (m) */
+  siteMemory: Record<string, Record<string, { w: number; h: number }>>;
   settings: Settings;
 }
 
@@ -57,6 +59,7 @@ const defaults: AppState = {
   seedVersion: 0,
   trips: [],
   home: null,
+  siteMemory: {},
   settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '' },
 };
 
@@ -237,6 +240,12 @@ export const actions = {
   },
   removeTrip(id: string) {
     setState((s) => ({ ...s, trips: s.trips.filter((x) => x.id !== id) }));
+  },
+  rememberSite(campKey: string, siteKey: string, w: number, h: number) {
+    if (!campKey || !siteKey || !(w > 0) || !(h > 0)) return;
+    const cur = state.siteMemory[campKey]?.[siteKey];
+    if (cur && cur.w === w && cur.h === h) return;
+    setState((s) => ({ ...s, siteMemory: { ...s.siteMemory, [campKey]: { ...(s.siteMemory[campKey] ?? {}), [siteKey]: { w, h } } } }));
   },
   setHome(home: HomePlace | null) {
     setState((s) => ({ ...s, home }));
