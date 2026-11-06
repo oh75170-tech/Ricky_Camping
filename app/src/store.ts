@@ -36,6 +36,8 @@ export interface AppState {
   sharedGear: Gear[];
   sharedBrands: string[];
   sharedAt: number;
+  /** 모두의 장비목록에 올린 사람 표시용 무작위 코드 (내 기기들끼리 동기화) */
+  contributorId: string;
   settings: Settings;
 }
 
@@ -69,6 +71,7 @@ const defaults: AppState = {
   sharedGear: [],
   sharedBrands: [],
   sharedAt: 0,
+  contributorId: '',
   settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '', adminCode: '' },
 };
 
@@ -267,7 +270,7 @@ export const actions = {
   },
   /** 처음 상태로: 보유·위시·직접 추가 장비·배치·일정·집 위치 등을 모두 지움 (설정·공유 장비목록은 유지) */
   resetData() {
-    setState((s) => ({ ...defaults, seedVersion: 5, settings: s.settings, sharedGear: s.sharedGear, sharedBrands: s.sharedBrands, sharedAt: s.sharedAt }));
+    setState((s) => ({ ...defaults, seedVersion: 5, settings: s.settings, sharedGear: s.sharedGear, sharedBrands: s.sharedBrands, sharedAt: s.sharedAt, contributorId: s.contributorId }));
   },
   clearLayout() {
     setState((s) => ({ ...s, placements: [] }));

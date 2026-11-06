@@ -1,3 +1,4 @@
+import { deleteSharedGear } from '../catalog';
 import { useMemo, useRef, useState } from 'react';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
 import { CATEGORIES, type Gear } from '../types';
@@ -19,6 +20,7 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const owned = useStore((s) => s.owned);
   const wish = useStore((s) => s.wish);
   const sharedGear = useStore((s) => s.sharedGear);
+  const adminCode = useStore((s) => s.settings.adminCode);
   const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear, sharedGear]);
   const [brand, setBrand] = useState<string>(CORE_BRANDS[0]);
   const [q, setQ] = useState('');
@@ -298,14 +300,28 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
           {editing !== 'new' && editing.custom && (
             <button
               className="btn ghost danger full"
-              onClick={() => {
-                if (ask('이 장비를 삭제할까요?')) {
-                  actions.removeGear(editing.id);
-                  setEditing(null);
-                }
+              onClick={async () => {
+                const isShared = getState().sharedGear.some((g) => g.id === editing.id);
+                if (!ask(isShared ? '이 장비를 삭제할까요?\n내가 올린 장비라 모두의 장비목록에서도 지워져요.' : '이 장비를 삭제할까요?')) return;
+                if (isShared) await deleteSharedGear(editing.id);
+                actions.removeGear(editing.id);
+                setEditing(null);
               }}
             >
               장비 삭제
+            </button>
+          )}
+          {editing !== 'new' && editing.shared && !editing.custom && adminCode && (
+            <button
+              className="btn ghost danger full"
+              onClick={async () => {
+                if (!ask(`"${editing.name}"을(를) 모두의 장비목록에서 지울까요? (관리자)`)) return;
+                const r = await deleteSharedGear(editing.id, adminCode);
+                if (r.ok) setEditing(null);
+                else alert(r.message);
+              }}
+            >
+              모두의 장비목록에서 삭제 (관리자)
             </button>
           )}
         </Modal>

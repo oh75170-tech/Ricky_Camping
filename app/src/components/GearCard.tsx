@@ -30,6 +30,7 @@ export function GearCard({
           </div>
         </div>
         {gear.verified ? <span className="badge ok">확인됨</span> : <span className="badge warn">추정</span>}
+        {gear.shared && !gear.custom && <span className="badge warn" title="다른 사용자가 추가한 장비">모두의 장비</span>}
       </div>
       <div className="gear-dims">
         <span><Icon name="ruler" size={14} /> {dimText(gear)}</span>
