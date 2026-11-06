@@ -83,6 +83,8 @@ export interface Gear {
   source?: string;
   /** 사용자가 직접 입력/AI로 추가 */
   custom?: boolean;
+  /** 관리자가 공유한 장비목록에서 받은 장비 */
+  shared?: boolean;
 }
 
 export interface Site {

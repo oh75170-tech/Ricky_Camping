@@ -76,7 +76,8 @@ export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip
   const placements = useStore((s) => s.placements);
   const extraBrands = useStore((s) => s.extraBrands);
   const customGear = useStore((s) => s.customGear);
-  const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear]);
+  const sharedGear = useStore((s) => s.sharedGear);
+  const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear, sharedGear]);
   const site = sites.find((s) => s.id === activeSite) ?? sites[0];
   const selPl = placements.find((p) => p.id === selected);
 
