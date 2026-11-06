@@ -133,6 +133,10 @@ export interface Place {
   homepage?: string;
   /** 고캠핑 등에서 가져온 사이트 정보 요약 */
   info?: string;
+  /** 고캠핑 사이트 크기 후보 (m) */
+  sizes?: { w: number; h: number; count?: number }[];
+  /** 고캠핑 바닥 종류 */
+  floors?: string[];
 }
 
 /** 일정에 저장한 배치도 (그 시점의 사본) */
@@ -160,6 +164,8 @@ export interface Trip {
   siteH?: number;
   layout?: LayoutSnapshot;
   memo?: string;
+  /** 캠핑 사진 id (최대 4장, 사진 자체는 이 기기 IndexedDB에 보관) */
+  photos?: string[];
   createdAt: number;
 }
 

@@ -2,9 +2,10 @@ import { useSyncExternalStore } from 'react';
 import { getState, setState, subscribeStore, type AppState } from './store';
 import { serverUrl } from './config';
 import { IS_PREVIEW } from './env';
+import { exportPhotos, importPhotos } from './photos';
 
 /** 백업·동기화 대상 (설정·키는 제외) */
-const DATA_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'sites', 'placements', 'campsite', 'layer', 'seedVersion', 'trips', 'home'] as const;
+const DATA_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'sites', 'placements', 'campsite', 'layer', 'seedVersion', 'trips', 'home', 'siteMemory'] as const;
 type DataKey = (typeof DATA_KEYS)[number];
 export type UserData = Pick<AppState, DataKey>;
 
@@ -27,16 +28,30 @@ export function applyData(d: Partial<UserData>) {
 }
 
 // ───────── 1) 백업 파일 ─────────
-export function makeBackup(): Blob {
-  const payload = { app: 'CampCanvas', version: 1, exportedAt: new Date().toISOString(), data: pickData() };
-  return new Blob([JSON.stringify(payload, null, 1)], { type: 'application/json' });
+/** 백업 파일: 데이터 + 캠핑 사진(이 기기에 있는 것) */
+export async function makeBackup(): Promise<Blob> {
+  const data = pickData();
+  const ids = data.trips.flatMap((t) => t.photos ?? []);
+  const photos = ids.length ? await exportPhotos(ids) : {};
+  const payload = { app: 'CampCanvas', version: 2, exportedAt: new Date().toISOString(), data, photos };
+  return new Blob([JSON.stringify(payload)], { type: 'application/json' });
 }
 
-export async function readBackup(file: File): Promise<UserData> {
+export interface BackupFile {
+  data: UserData;
+  photos: Record<string, string>;
+}
+
+export async function readBackup(file: File): Promise<BackupFile> {
   const obj = JSON.parse(await file.text());
   const data = obj?.app === 'CampCanvas' ? obj.data : obj;
   if (!isUserData(data)) throw new Error('CampCanvas 백업 파일이 아니에요.');
-  return data as UserData;
+  return { data: data as UserData, photos: (obj?.photos as Record<string, string>) ?? {} };
+}
+
+export async function applyBackup(b: BackupFile) {
+  await importPhotos(b.photos);
+  applyData(b.data);
 }
 
 // ───────── 2) 서버 자동 동기화 ─────────

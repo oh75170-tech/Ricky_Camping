@@ -93,3 +93,37 @@ export function dday(t: Trip) {
   if (!isPastTrip(t)) return n === 0 ? 'D-DAY' : '캠핑 중';
   return '다녀옴';
 }
+
+// ───────── 자리번호 → 사이트 크기 기억 ─────────
+export const campKey = (name: string) => name.replace(/\s+/g, '').toLowerCase();
+export const siteKey = (no: string) => no.trim().toUpperCase().replace(/\s+/g, '').replace(/번$/, '');
+
+/** 구역: "A-12"/"A12" → A, "카라반3" → 카라반, "2-15" → 2 */
+export function zoneOf(no: string): string | null {
+  const k = siteKey(no);
+  const m = k.match(/^([A-Z가-힣]+)/);
+  if (m) return m[1];
+  const d = k.match(/^(\d+)[-_.]\d+/);
+  return d ? d[1] : null;
+}
+
+export type SiteSizeHint = { w: number; h: number; kind: 'exact' } | { w: number; h: number; kind: 'zone'; zone: string; n: number };
+
+export function lookupSiteSize(campName: string, no: string): SiteSizeHint | null {
+  const mem = getState().siteMemory[campKey(campName)];
+  if (!mem || !no.trim()) return null;
+  const k = siteKey(no);
+  if (mem[k]) return { ...mem[k], kind: 'exact' };
+  const zone = zoneOf(no);
+  if (!zone) return null;
+  const counts = new Map<string, { w: number; h: number; n: number }>();
+  for (const [sk, v] of Object.entries(mem)) {
+    if (zoneOf(sk) !== zone) continue;
+    const id = `${v.w}x${v.h}`;
+    const c = counts.get(id) ?? { ...v, n: 0 };
+    c.n++;
+    counts.set(id, c);
+  }
+  const best = [...counts.values()].sort((a, b) => b.n - a.n)[0];
+  return best ? { w: best.w, h: best.h, kind: 'zone', zone, n: best.n } : null;
+}

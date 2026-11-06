@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../components/Icon';
 import { TripMap } from '../components/TripMap';
 import { HomeModal } from '../components/HomeModal';
+import { PhotoThumb, PhotoViewer, TripPhotoSlots } from '../components/TripPhotos';
+import { deletePhotos } from '../photos';
 import { CATEGORIES, SITE_FLOORS, type Place, type SiteFloor, type Trip } from '../types';
 import { actions, getState, useStore } from '../store';
 import { ask, IS_PREVIEW } from '../env';
@@ -17,7 +19,7 @@ import {
   type RouteInfo,
   type WeatherResult,
 } from '../geo';
-import { applyLayout, dday, fmtTripDates, isPastTrip, newTrip, snapshotLayout } from '../trips';
+import { applyLayout, campKey, dday, fmtTripDates, isPastTrip, lookupSiteSize, newTrip, siteKey, snapshotLayout, todayStr } from '../trips';
 
 const floorLabel = (f: SiteFloor | '') => SITE_FLOORS.find((x) => x.id === f)?.label ?? '';
 const catLabel = (c: string) => CATEGORIES.find((x) => x.id === c)?.label ?? c;
@@ -28,6 +30,7 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
   const [openId, setOpenId] = useState<string | null>(initialId ?? null);
   const [draftNew, setDraftNew] = useState<Trip | null>(null);
   const [showHome, setShowHome] = useState(false);
+  const [viewer, setViewer] = useState<{ ids: string[]; start: number } | null>(null);
   const home = useStore((s) => s.home);
 
   const sorted = useMemo(() => {
@@ -52,7 +55,14 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
     );
 
   const card = (t: Trip) => (
-    <button key={t.id} className={`trip-card ${isPastTrip(t) ? 'past' : ''}`} onClick={() => setOpenId(t.id)}>
+    <div
+      key={t.id}
+      role="button"
+      tabIndex={0}
+      className={`trip-card ${isPastTrip(t) ? 'past' : ''} ${t.photos?.length ? 'has-photos' : ''}`}
+      onClick={() => setOpenId(t.id)}
+      onKeyDown={(e) => e.key === 'Enter' && setOpenId(t.id)}
+    >
       <span className="trip-dday">{dday(t)}</span>
       <span className="trip-main">
         <b>{tripName(t)}</b>
@@ -65,8 +75,16 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
           {t.layout && <span className="on">배치도 · 장비 {t.layout.gearList.reduce((n, g) => n + g.count, 0)}개</span>}
         </small>
       </span>
-      <Icon name="back" size={16} className="chev" />
-    </button>
+      {t.photos?.length ? (
+        <span className={`trip-photos n${Math.min(t.photos.length, 4)}`}>
+          {t.photos.slice(0, 4).map((id, n) => (
+            <PhotoThumb key={id} id={id} onClick={() => setViewer({ ids: t.photos!.slice(0, 4), start: n })} />
+          ))}
+        </span>
+      ) : (
+        <Icon name="back" size={16} className="chev" />
+      )}
+    </div>
   );
 
   return (
@@ -111,6 +129,7 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
         )}
       </div>
       {showHome && <HomeModal onClose={() => setShowHome(false)} />}
+      {viewer && <PhotoViewer ids={viewer.ids} start={viewer.start} onClose={() => setViewer(null)} />}
     </div>
   );
 }
@@ -138,13 +157,48 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
     setSaved(true);
   };
 
+  // ── 자리번호 → 크기 기억 (입력을 마치거나 화면을 나갈 때 저장)
+  const tRef = useRef(t);
+  tRef.current = t;
+  const remember = () => {
+    const x = tRef.current;
+    if (x.place.name && x.siteNo && x.siteW && x.siteH) actions.rememberSite(campKey(x.place.name), siteKey(x.siteNo), x.siteW, x.siteH);
+  };
+  useEffect(() => remember, []);
+  /** 크기가 어디서 자동으로 들어왔는지 (직접 고치면 null) */
+  const [autoSrc, setAutoSrc] = useState<'memory' | 'single' | null>(null);
+  const [sizeNote, setSizeNote] = useState('');
+  const singleSize = (p: Place) => (p.sizes?.length === 1 ? p.sizes[0] : null);
+  const onSiteNo = (v: string, place: Place = t.place) => {
+    const hint = place.name ? lookupSiteSize(place.name, v) : null;
+    if (hint?.kind === 'exact' && (!t.siteW || autoSrc)) {
+      update({ siteNo: v, siteW: hint.w, siteH: hint.h });
+      setAutoSrc('memory');
+      setSizeNote(`지난번에 입력한 ${v.trim()} 크기를 넣었어요.`);
+      return;
+    }
+    if (autoSrc === 'memory') {
+      // 다른 자리로 바꿨는데 기록이 없으면 자동으로 넣었던 크기는 비움
+      const one = singleSize(place);
+      update({ siteNo: v, siteW: one?.w, siteH: one?.h });
+      setAutoSrc(one ? 'single' : null);
+      setSizeNote('');
+      return;
+    }
+    update({ siteNo: v });
+  };
+  const setSize = (patch: Partial<Trip>) => {
+    update(patch);
+    setAutoSrc(null);
+    setSizeNote('');
+  };
+
   // ── 캠핑장 검색
   const [q, setQ] = useState('');
   const [searching, setSearching] = useState(false);
   const [results, setResults] = useState<CampResult[] | null>(null);
   const [resultSrc, setResultSrc] = useState<'gocamping' | 'osm'>('osm');
   const [searchErr, setSearchErr] = useState('');
-  const [picked, setPicked] = useState<CampResult | null>(null);
   const doSearch = async () => {
     if (!q.trim()) return;
     setSearching(true);
@@ -161,13 +215,20 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
     }
   };
   const pick = (r: CampResult) => {
-    setPicked(r);
     setResults(null);
-    const first = r.sizes?.[0];
-    update({
-      place: { name: r.name, address: r.address, lat: r.lat, lng: r.lng, source: r.source, tel: r.tel, homepage: r.homepage, info: r.info },
-      ...(first && !t.siteW ? { siteW: first.w, siteH: first.h } : {}),
-    });
+    const place: Place = { name: r.name, address: r.address, lat: r.lat, lng: r.lng, source: r.source, tel: r.tel, homepage: r.homepage, info: r.info, sizes: r.sizes, floors: r.floors };
+    const hint = t.siteNo ? lookupSiteSize(r.name, t.siteNo) : null;
+    const one = singleSize(place);
+    const canFill = !t.siteW || !!autoSrc;
+    if (canFill && hint?.kind === 'exact') {
+      update({ place, siteW: hint.w, siteH: hint.h });
+      setAutoSrc('memory');
+      setSizeNote(`지난번에 입력한 ${t.siteNo} 크기를 넣었어요.`);
+    } else if (canFill && one) {
+      update({ place, siteW: one.w, siteH: one.h });
+      setAutoSrc('single');
+      setSizeNote('이 캠핑장은 사이트 크기가 한 종류라 자동으로 넣었어요.');
+    } else update({ place });
   };
 
   // 주소/이름으로 위치만 찾기 (직접 입력한 캠핑장)
@@ -249,7 +310,8 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
   };
 
   const remove = () => {
-    if (!ask(`"${tripName(t)}" 일정을 삭제할까요?`)) return;
+    if (!ask(`"${tripName(t)}" 일정을 삭제할까요?${t.photos?.length ? `\n사진 ${t.photos.length}장도 함께 지워져요.` : ''}`)) return;
+    if (t.photos?.length) deletePhotos(t.photos);
     actions.removeTrip(t.id);
     onClose();
   };
@@ -260,8 +322,21 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
   };
 
   const past = isPastTrip(t);
-  const sizes = picked?.sizes ?? [];
-  const floors = picked?.floors ?? [];
+  const sizes = t.place.sizes ?? [];
+  const floors = t.place.floors ?? [];
+  const hint = t.place.name && t.siteNo ? lookupSiteSize(t.place.name, t.siteNo) : null;
+  const zoneHint = hint && (hint.w !== t.siteW || hint.h !== t.siteH) ? hint : null;
+  const showPhotos = past || (!!t.startDate && t.startDate <= todayStr()) || !!t.photos?.length;
+  const setPhotos = (ids: string[], removed?: string[]) => {
+    if (removed?.length) deletePhotos(removed);
+    if (saved) update({ photos: ids });
+    else {
+      const next = { ...t, photos: ids };
+      setT(next);
+      actions.saveTrip(next);
+      setSaved(true);
+    }
+  };
 
   return (
     <div className="catalog trips">
@@ -308,6 +383,14 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
             </div>
           </div>
         </section>
+
+        {/* 사진 */}
+        {showPhotos && (
+          <section className="trip-sec">
+            <h3><Icon name="camera" size={18} /> 캠핑 사진</h3>
+            <TripPhotoSlots ids={t.photos ?? []} onChange={setPhotos} />
+          </section>
+        )}
 
         {/* 장소 */}
         <section className="trip-sec">
@@ -372,7 +455,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
             <div className="row nowrap">
               <label style={{ flex: 1 }}>
                 몇 번 자리
-                <input value={t.siteNo} onChange={(e) => update({ siteNo: e.target.value })} placeholder="예: A-12" />
+                <input value={t.siteNo} onChange={(e) => onSiteNo(e.target.value)} onBlur={remember} placeholder="예: A-12" />
               </label>
               <label style={{ flex: 1.4 }}>
                 사이트 크기 (m)
@@ -384,7 +467,8 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                     max={200}
                     step={0.5}
                     value={t.siteW ?? ''}
-                    onChange={(e) => update({ siteW: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => setSize({ siteW: e.target.value ? Number(e.target.value) : undefined })}
+                    onBlur={remember}
                     placeholder="가로"
                   />
                   <span>×</span>
@@ -395,12 +479,24 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                     max={200}
                     step={0.5}
                     value={t.siteH ?? ''}
-                    onChange={(e) => update({ siteH: e.target.value ? Number(e.target.value) : undefined })}
+                    onChange={(e) => setSize({ siteH: e.target.value ? Number(e.target.value) : undefined })}
+                    onBlur={remember}
                     placeholder="세로"
                   />
                 </div>
               </label>
             </div>
+            {sizeNote && <p className="small size-note">✔ {sizeNote}</p>}
+            {zoneHint && (
+              <div className="row">
+                <span className="small">
+                  {zoneHint.kind === 'exact' ? `${t.siteNo} 지난 기록:` : `${zoneHint.zone}구역 기록(${zoneHint.n}곳):`}
+                </span>
+                <button type="button" className="chip" onClick={() => (setSize({ siteW: zoneHint.w, siteH: zoneHint.h }), setTimeout(remember))}>
+                  {zoneHint.w}×{zoneHint.h}m 넣기
+                </button>
+              </div>
+            )}
             {sizes.length > 0 && (
               <div className="row">
                 <span className="small">고캠핑 사이트 크기:</span>
@@ -409,7 +505,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                     type="button"
                     key={i}
                     className={`chip ${t.siteW === s.w && t.siteH === s.h ? 'on' : ''}`}
-                    onClick={() => update({ siteW: s.w, siteH: s.h })}
+                    onClick={() => setSize({ siteW: s.w, siteH: s.h })}
                   >
                     {s.w}×{s.h}m{s.count ? ` (${s.count}면)` : ''}
                   </button>

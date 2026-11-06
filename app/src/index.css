@@ -353,3 +353,33 @@ a.btn { text-decoration: none; }
 .trip-gear td:nth-child(3), .trip-gear td:nth-child(4) { white-space: nowrap; }
 .trip-memo { width: 100%; border: 1px solid var(--line); border-radius: 10px; padding: 10px; font: inherit; color: var(--ink); background: #fff; resize: vertical; }
 .site-badge:disabled { opacity: .45; }
+
+/* 캠핑 사진 */
+.trip-card { cursor: pointer; }
+.trip-photos { flex: none; display: grid; grid-template-columns: repeat(2, 64px); grid-auto-rows: 64px; gap: 4px; }
+.trip-photos.n1 { grid-template-columns: 132px; grid-auto-rows: 132px; }
+.trip-photos.n2 { grid-template-columns: repeat(2, 64px); grid-auto-rows: 132px; }
+.trip-photos.n3 > :first-child { grid-row: span 2; }
+@media (min-width: 600px) {
+  .trip-photos { grid-template-columns: repeat(2, 84px); grid-auto-rows: 84px; gap: 5px; }
+  .trip-photos.n1 { grid-template-columns: 173px; grid-auto-rows: 173px; }
+  .trip-photos.n2 { grid-template-columns: repeat(2, 84px); grid-auto-rows: 173px; }
+}
+@media (max-width: 420px) { .trip-card.has-photos .trip-dday { display: none; } }
+.photo-thumb { padding: 0; border: 0; border-radius: 10px; overflow: hidden; background: var(--soft); width: 100%; height: 100%; display: block; }
+.photo-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.photo-missing { font-size: 10px; color: var(--muted); display: flex; align-items: center; justify-content: center; height: 100%; padding: 4px; text-align: center; }
+.photo-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.photo-slots .photo-thumb, .photo-add { aspect-ratio: 1; }
+@media (max-width: 480px) { .photo-slots { grid-template-columns: repeat(2, 1fr); } }
+.photo-add { border: 1.5px dashed #c9c9c6; border-radius: 10px; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--muted); font-size: 12px; }
+.size-note { color: var(--ink); margin: 0; }
+.viewer-back { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,.92); display: flex; align-items: center; justify-content: center; padding: calc(56px + var(--safe-t)) 8px calc(24px + var(--safe-b)); touch-action: pan-y; }
+.viewer-img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; user-select: none; }
+.viewer-missing { color: #ccc; }
+.viewer-top { position: absolute; top: 0; left: 0; right: 0; display: flex; align-items: center; gap: 6px; padding: calc(10px + var(--safe-t)) 12px 10px; color: #fff; font-size: 14px; }
+.viewer-btn { border: 0; background: rgba(255,255,255,.14); color: #fff; width: 42px; height: 42px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.viewer-nav { position: absolute; top: 50%; transform: translateY(-50%); border: 0; background: rgba(255,255,255,.14); color: #fff; width: 46px; height: 46px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.viewer-nav.prev { left: 10px; }
+.viewer-nav.next { right: 10px; }
+.viewer-nav.next svg { transform: rotate(180deg); }
