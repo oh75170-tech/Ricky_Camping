@@ -19,16 +19,33 @@ import {
   type RouteInfo,
   type WeatherResult,
 } from '../geo';
-import { applyLayout, campKey, dday, fmtTripDates, isPastTrip, lookupSiteSize, newTrip, siteKey, snapshotLayout, todayStr } from '../trips';
+import { campKey, linkCurrentLayout, openTripLayout, dday, fmtTripDates, isPastTrip, lookupSiteSize, newTrip, siteKey, todayStr } from '../trips';
 
 const floorLabel = (f: SiteFloor | '') => SITE_FLOORS.find((x) => x.id === f)?.label ?? '';
 const catLabel = (c: string) => CATEGORIES.find((x) => x.id === c)?.label ?? c;
 const tripName = (t: Trip) => t.title || t.place.name || '이름 없는 일정';
 
-export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; onPlanner: () => void; initialId?: string | null }) {
+export function Trips({
+  openId,
+  onOpen,
+  onCloseTrip,
+  onBack,
+  onPlanner,
+}: {
+  openId: string | null;
+  onOpen: (id: string) => void;
+  onCloseTrip: () => void;
+  onBack: () => void;
+  onPlanner: () => void;
+}) {
   const trips = useStore((s) => s.trips);
-  const [openId, setOpenId] = useState<string | null>(initialId ?? null);
+  // 새 일정 초안 ('new' 화면에서만 사용)
   const [draftNew, setDraftNew] = useState<Trip | null>(null);
+  const draft = openId === 'new' ? (draftNew ?? null) : null;
+  useEffect(() => {
+    if (openId === 'new' && !draftNew) setDraftNew(newTrip());
+    if (openId !== 'new' && draftNew) setDraftNew(null);
+  }, [openId]);
   const [showHome, setShowHome] = useState(false);
   const [viewer, setViewer] = useState<{ ids: string[]; start: number } | null>(null);
   const home = useStore((s) => s.home);
@@ -39,17 +56,15 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
     return { up, past };
   }, [trips]);
 
-  const open = draftNew ?? trips.find((t) => t.id === openId) ?? null;
+  const saved = draft ? trips.find((t) => t.id === draft.id) : null;
+  const open = saved ?? draft ?? trips.find((t) => t.id === openId) ?? null;
   if (open)
     return (
       <TripEditor
         key={open.id}
         initial={open}
-        isNew={!!draftNew}
-        onClose={() => {
-          setDraftNew(null);
-          setOpenId(null);
-        }}
+        isNew={!!draft && !saved}
+        onClose={onCloseTrip}
         onPlanner={onPlanner}
       />
     );
@@ -60,8 +75,8 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
       role="button"
       tabIndex={0}
       className={`trip-card ${isPastTrip(t) ? 'past' : ''} ${t.photos?.length ? 'has-photos' : ''}`}
-      onClick={() => setOpenId(t.id)}
-      onKeyDown={(e) => e.key === 'Enter' && setOpenId(t.id)}
+      onClick={() => onOpen(t.id)}
+      onKeyDown={(e) => e.key === 'Enter' && onOpen(t.id)}
     >
       <span className="trip-dday">{dday(t)}</span>
       <span className="trip-main">
@@ -97,7 +112,7 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
         <button className="site-badge" onClick={() => setShowHome(true)} title="집 위치">
           <Icon name="home" size={14} /> {home ? '집 설정됨' : '집 위치'}
         </button>
-        <button className="btn small primary" onClick={() => setDraftNew(newTrip())}>
+        <button className="btn small primary" onClick={() => onOpen('new')}>
           <Icon name="plus" size={16} /> 새 일정
         </button>
       </header>
@@ -110,7 +125,7 @@ export function Trips({ onBack, onPlanner, initialId }: { onBack: () => void; on
               <br />
               <b>새 일정</b>을 만들고 캠핑장·날짜를 넣은 뒤, 배치 화면의 배치도를 저장해두세요.
             </p>
-            <button className="btn primary" onClick={() => setDraftNew(newTrip())}>
+            <button className="btn primary" onClick={() => onOpen('new')}>
               첫 일정 만들기
             </button>
           </div>
@@ -285,28 +300,25 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
     };
   }, [t.place.lat, t.place.lng, t.startDate, t.endDate]);
 
-  // ── 배치도
-  const saveLayout = () => {
-    if (!placements) return;
-    if (t.layout && !ask('이 일정에 저장된 배치도를 지금 배치 화면의 배치로 바꿀까요?')) return;
-    const snap = snapshotLayout();
-    const patch: Partial<Trip> = { layout: snap };
-    if (!t.siteW && snap.campsite.confirmed) Object.assign(patch, { siteW: snap.campsite.w, siteH: snap.campsite.h });
-    update(patch);
+  // ── 배치도: 꺼내면 배치 화면이 이 일정에 연결되어 고치는 대로 자동 저장
+  const activeTripId = useStore((s) => s.activeTripId);
+  const ensureSaved = () => {
+    if (!saved) {
+      actions.saveTrip(tRef.current);
+      setSaved(true);
+    }
   };
   const openLayout = () => {
-    if (!t.layout) return;
-    if (getState().placements.length && !ask('배치 화면의 지금 배치가 이 일정의 배치도로 바뀝니다.\n(지금 배치를 남기려면 먼저 다른 일정에 저장해두세요)\n계속할까요?')) return;
-    applyLayout(t.layout);
+    ensureSaved();
+    remember();
+    openTripLayout(t.id);
     onPlanner();
   };
-  const startLayout = () => {
-    // 이 일정 사이트 크기로 새 배치 시작
-    if (getState().placements.length && !ask('배치 화면을 비우고 이 일정의 사이트 크기로 새로 배치할까요?')) return;
-    actions.clearLayout();
-    if (t.siteW && t.siteH) actions.setCampsite(t.siteW, t.siteH, [t.place.name, t.siteNo].filter(Boolean).join(' '));
-    if (!saved) save();
-    onPlanner();
+  const importCurrent = () => {
+    ensureSaved();
+    linkCurrentLayout(t.id);
+    const fresh = getState().trips.find((x) => x.id === t.id);
+    if (fresh) setT(fresh);
   };
 
   const remove = () => {
@@ -635,12 +647,11 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
               </p>
               <div className="row">
                 <button className="btn small primary" onClick={openLayout}>
-                  배치도 꺼내보기
+                  배치도 꺼내보기 · 수정
                 </button>
-                <button className="btn small" onClick={saveLayout} disabled={!placements}>
-                  지금 배치로 바꾸기
-                </button>
+                {activeTripId === t.id && <span className="muted small">배치 화면에 꺼내져 있어요</span>}
               </div>
+              <p className="muted small">배치 화면에서 고치면 이 일정 배치도에 자동으로 저장돼요.</p>
               <table className="trip-gear">
                 <thead>
                   <tr>
@@ -667,15 +678,17 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
           ) : (
             <>
               <p className="muted small">
-                배치 화면에서 배치한 뒤 여기서 저장하거나, 배치 화면 위쪽의 <b>일정</b> 버튼으로 저장할 수 있어요. 저장하면 그때 쓴 장비 목록도 함께 남아요.
+                아직 배치도가 없어요. <b>배치 시작하기</b>를 누르면 이 일정의 사이트 크기로 배치 화면이 열리고, 놓는 장비가 이 일정에 자동으로 저장돼요.
               </p>
               <div className="row">
-                <button className="btn small primary" onClick={saveLayout} disabled={!placements}>
-                  지금 배치 저장 {placements ? `(${placements}개)` : ''}
+                <button className="btn small primary" onClick={openLayout}>
+                  이 일정 배치 시작하기
                 </button>
-                <button className="btn small" onClick={startLayout}>
-                  이 일정으로 새로 배치하기
-                </button>
+                {!activeTripId && placements > 0 && (
+                  <button className="btn small" onClick={importCurrent}>
+                    배치 화면의 장비 가져오기 ({placements}개)
+                  </button>
+                )}
               </div>
             </>
           )}

@@ -43,7 +43,7 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
           </span>
           {placed > 0 && <em>{placed}</em>}
         </button>
-        <button className="home-card" onClick={() => (next ? go('trips', next.id) : go('trips'))}>
+        <button className="home-card" onClick={() => go('trips')}>
           <span className="home-icon"><Icon name="calendar" size={30} stroke={1.3} /></span>
           <span>
             <b>캠핑일정</b>
@@ -57,11 +57,6 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
           </span>
           {trips.length > 0 && <em>{trips.length}</em>}
         </button>
-        {next && (
-          <button className="linklike home-trips-all" onClick={() => go('trips')}>
-            전체 일정 보기
-          </button>
-        )}
       </div>
       {!IS_PREVIEW && !isNativeApp() && (
         <section className="install-box">

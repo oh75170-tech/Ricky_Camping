@@ -1,6 +1,6 @@
 /** 캠핑 일정 ↔ 배치도 연결 도우미 */
 import { CATEGORIES, type Gear, type LayoutSnapshot, type Trip } from './types';
-import { allGear, getState, setState, uid } from './store';
+import { allGear, getState, setState, subscribeStore, uid } from './store';
 
 /** 현재 배치도를 일정에 넣을 사본으로 만들기 (썼던 장비 목록 포함) */
 export function snapshotLayout(): LayoutSnapshot {
@@ -126,4 +126,94 @@ export function lookupSiteSize(campName: string, no: string): SiteSizeHint | nul
   }
   const best = [...counts.values()].sort((a, b) => b.n - a.n)[0];
   return best ? { w: best.w, h: best.h, kind: 'zone', zone, n: best.n } : null;
+}
+
+// ───────── 일정 ↔ 배치 화면 연결 ─────────
+const emptyLayoutFor = (t: Trip): LayoutSnapshot => {
+  const s = getState();
+  return {
+    savedAt: Date.now(),
+    sites: [{ id: 'site-1', name: '우리 사이트', color: '#262626' }],
+    placements: [],
+    campsite: {
+      w: t.siteW ?? s.campsite.w,
+      h: t.siteH ?? s.campsite.h,
+      name: [t.place.name, t.siteNo].filter(Boolean).join(' '),
+      confirmed: !!(t.siteW && t.siteH),
+    },
+    gear: [],
+    gearList: [],
+  };
+};
+
+/** 연결된 일정에 지금 배치를 바로 저장 */
+function flushActiveTrip() {
+  const s = getState();
+  const id = s.activeTripId;
+  if (!id || !s.trips.some((t) => t.id === id)) return;
+  const snap = snapshotLayout();
+  setState((x) => ({ ...x, trips: x.trips.map((t) => (t.id === id ? { ...t, layout: snap } : t)) }));
+}
+
+/** 일정의 배치도를 배치 화면에 꺼내기 (없으면 그 일정 사이트 크기로 빈 배치) – 이후 변경은 일정에 자동 저장 */
+export function openTripLayout(tripId: string) {
+  const s = getState();
+  const t = s.trips.find((x) => x.id === tripId);
+  if (!t) return;
+  if (s.activeTripId === tripId) return;
+  flushActiveTrip();
+  // 일정과 연결되지 않은 작업 중 배치는 따로 보관했다가, 일정 배치를 끝내면 되돌림
+  const stash = s.activeTripId ? s.workspaceStash : s.placements.length ? { sites: s.sites, placements: s.placements, campsite: s.campsite } : null;
+  applyLayout(t.layout ?? emptyLayoutFor(t));
+  setState((x) => ({ ...x, activeTripId: tripId, workspaceStash: stash }));
+}
+
+/** 지금 배치 화면의 배치를 일정에 저장하고 연결 */
+export function linkCurrentLayout(tripId: string) {
+  const s = getState();
+  const t = s.trips.find((x) => x.id === tripId);
+  if (!t) return;
+  const snap = snapshotLayout();
+  const patch: Partial<Trip> = { layout: snap };
+  if (!t.siteW && snap.campsite.confirmed) Object.assign(patch, { siteW: snap.campsite.w, siteH: snap.campsite.h });
+  setState((x) => ({
+    ...x,
+    trips: x.trips.map((y) => (y.id === tripId ? { ...y, ...patch } : y)),
+    activeTripId: tripId,
+    // 연결 전 작업 배치가 곧 이 일정 배치이므로 따로 보관할 것은 그대로
+  }));
+}
+
+/** 일정 배치 끝내기: 꺼내보기 전에 하던 배치로 되돌림 */
+export function closeTripLayout() {
+  flushActiveTrip();
+  const s = getState();
+  const st = s.workspaceStash;
+  setState((x) => ({
+    ...x,
+    activeTripId: null,
+    workspaceStash: null,
+    ...(st ? { sites: st.sites, placements: st.placements, campsite: st.campsite } : { placements: [], sites: [{ id: 'site-1', name: '우리 사이트', color: '#262626' }] }),
+  }));
+}
+
+/** 연결된 일정이 있으면 배치 변경을 그 일정에 자동 저장 */
+export function startTripAutosave() {
+  let last = [getState().placements, getState().sites, getState().campsite];
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  subscribeStore(() => {
+    const s = getState();
+    const cur = [s.placements, s.sites, s.campsite];
+    if (cur.every((v, i) => v === last[i])) return;
+    last = cur;
+    if (!s.activeTripId) return;
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      const st = getState();
+      const id = st.activeTripId;
+      if (!id) return;
+      if (!st.trips.some((t) => t.id === id)) return setState((x) => ({ ...x, activeTripId: null, workspaceStash: null }));
+      flushActiveTrip();
+    }, 600);
+  });
 }
