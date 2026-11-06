@@ -4,8 +4,17 @@ import { serverUrl } from './config';
 import { IS_PREVIEW } from './env';
 import { exportPhotos, importPhotos } from './photos';
 
-/** 백업·동기화 대상 (설정·키는 제외) */
+/** 백업 파일 대상 (설정·키는 제외) */
 const DATA_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'sites', 'placements', 'campsite', 'layer', 'seedVersion', 'trips', 'home', 'siteMemory', 'contributorId'] as const;
+/** 서버 자동 동기화 대상: 캠핑장비 관련만 (일정·집·배치는 기기에만) */
+const SYNC_KEYS = ['customGear', 'overrides', 'owned', 'wish', 'extraBrands', 'seedVersion', 'contributorId'] as const;
+type SyncKey = (typeof SYNC_KEYS)[number];
+type SyncData = Pick<AppState, SyncKey>;
+function pickSync(s: AppState = getState()): SyncData {
+  const d = {} as Record<string, unknown>;
+  for (const k of SYNC_KEYS) d[k] = s[k];
+  return d as SyncData;
+}
 type DataKey = (typeof DATA_KEYS)[number];
 export type UserData = Pick<AppState, DataKey>;
 
@@ -19,10 +28,10 @@ function isUserData(x: unknown): x is Partial<UserData> {
   return !!x && typeof x === 'object' && Array.isArray((x as UserData).owned) && Array.isArray((x as UserData).customGear);
 }
 
-export function applyData(d: Partial<UserData>) {
+export function applyData(d: Partial<UserData>, keys: readonly string[] = DATA_KEYS) {
   setState((s) => {
     const next = { ...s } as Record<string, unknown>;
-    for (const k of DATA_KEYS) if (d[k] !== undefined) next[k] = d[k];
+    for (const k of keys) if ((d as Record<string, unknown>)[k] !== undefined) next[k] = (d as Record<string, unknown>)[k];
     return next as unknown as AppState;
   });
 }
@@ -60,7 +69,7 @@ export interface CloudStatus {
   message: string;
   savedAt: number | null;
   /** 처음 연결할 때 서버와 이 기기 둘 다 데이터가 있으면 사용자가 고름 */
-  remote?: { data: UserData; updatedAt: number } | null;
+  remote?: { data: SyncData; updatedAt: number } | null;
 }
 let status: CloudStatus = { state: 'off', message: '', savedAt: null };
 const ls = new Set<() => void>();
@@ -121,7 +130,7 @@ async function push() {
   set({ state: 'syncing', message: '저장 중…' });
   try {
     const m = meta();
-    await call('PUT', code, JSON.stringify({ data: pickData(), updatedAt: m.localUpdatedAt || Date.now() }));
+    await call('PUT', code, JSON.stringify({ data: pickSync(), updatedAt: m.localUpdatedAt || Date.now() }));
     set({ state: 'saved', message: '서버에 저장됨', savedAt: Date.now() });
   } catch (e) {
     set({ state: 'error', message: (e as Error).message });
@@ -131,7 +140,7 @@ async function push() {
 function onChange() {
   if (applying) return;
   const s = getState();
-  const cur = DATA_KEYS.map((k) => s[k]);
+  const cur = SYNC_KEYS.map((k) => s[k]);
   if (cur.every((v, i) => v === last[i])) return;
   last = cur;
   saveMeta({ ...meta(), localUpdatedAt: Date.now() });
@@ -140,11 +149,11 @@ function onChange() {
   timer = setTimeout(push, 1500);
 }
 
-function applyRemote(data: UserData, updatedAt: number) {
+function applyRemote(data: SyncData, updatedAt: number) {
   applying = true;
-  applyData(data);
+  applyData(data as Partial<UserData>, SYNC_KEYS); // 예전에 함께 올라간 일정·배치 등은 무시
   const s = getState();
-  last = DATA_KEYS.map((k) => s[k]);
+  last = SYNC_KEYS.map((k) => s[k]);
   saveMeta({ ...meta(), localUpdatedAt: updatedAt });
   applying = false;
 }
@@ -155,8 +164,8 @@ export async function syncNow(opts: { firstConnect?: boolean } = {}) {
   if (!code || IS_PREVIEW) return set({ state: 'off', message: '' });
   set({ state: 'syncing', message: '서버와 비교 중…' });
   try {
-    const res = (await call('GET', code)) as { doc: { data: UserData; updatedAt: number } | null };
-    const remote = res.doc && isUserData(res.doc.data) ? res.doc : null;
+    const res = (await call('GET', code)) as { doc: { data: SyncData; updatedAt: number } | null };
+    const remote = res.doc && isUserData(res.doc.data) ? { ...res.doc, data: pickSync({ ...getState(), ...res.doc.data } as AppState) } : null;
     const m = meta();
     const codeChanged = m.code !== code;
     if (!remote) {
@@ -164,7 +173,7 @@ export async function syncNow(opts: { firstConnect?: boolean } = {}) {
       return push();
     }
     // 처음 연결할 때 서버와 이 기기의 내용이 다르면 (보유 표시만 바꾼 경우 포함) 사용자에게 선택을 맡김
-    const differs = JSON.stringify(pickData()) !== JSON.stringify({ ...pickData(), ...remote.data });
+    const differs = JSON.stringify(pickSync()) !== JSON.stringify(remote.data);
     if ((opts.firstConnect || codeChanged) && differs) {
       // 둘 다 데이터가 있으면 사용자에게 선택을 맡김
       return set({ state: 'conflict', message: '서버에도 저장된 데이터가 있어요. 어느 쪽을 쓸까요?', remote });
@@ -200,7 +209,7 @@ export async function resolveConflict(useServer: boolean) {
 export function startCloudSync() {
   if (IS_PREVIEW || unsub) return;
   const s = getState();
-  last = DATA_KEYS.map((k) => s[k]);
+  last = SYNC_KEYS.map((k) => s[k]);
   unsub = subscribeStore(onChange);
   syncNow();
   // 다른 기기에서 바꾼 내용을 앱으로 돌아올 때 반영

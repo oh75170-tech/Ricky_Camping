@@ -11,6 +11,7 @@ import { SettingsModal } from '../components/SettingsModal';
 import { CampsiteModal } from '../components/CampsiteModal';
 import { CollabPanel } from '../components/CollabPanel';
 import { SaveTripModal } from '../components/SaveTripModal';
+import { closeTripLayout } from '../trips';
 import { Icon } from '../components/Icon';
 import { getSyncStatus, useSyncStatus } from '../sync';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
@@ -62,6 +63,7 @@ function suggestPosition(g: Gear, siteId: string, forceNewColumn: boolean) {
 
 export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip: (id: string) => void }) {
   const [showTrip, setShowTrip] = useState(false);
+  const activeTrip = useStore((s) => (s.activeTripId ? s.trips.find((t) => t.id === s.activeTripId) ?? null : null));
   const canvasRef = useRef<CanvasHandle>(null);
   const [tab, setTab] = useState<Tab | null>('pick');
   const [selected, setSelected] = useState<string | null>(null);
@@ -158,6 +160,20 @@ export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip
           <Icon name="settings" />
         </button>
       </header>
+      {activeTrip && (
+        <div className="trip-bar">
+          <Icon name="calendar" size={16} />
+          <span className="trip-bar-text">
+            <b>{activeTrip.title || activeTrip.place.name || '일정'}</b> 배치 중 · 고치면 일정에 자동 저장
+          </span>
+          <button className="btn small" onClick={() => onOpenTrip(activeTrip.id)}>
+            일정 보기
+          </button>
+          <button className="btn small ghost" onClick={() => closeTripLayout()}>
+            끝내기
+          </button>
+        </div>
+      )}
       <nav className="tabs">
         {TABS.map((t) => (
           <button key={t.id} className={tab === t.id ? 'on' : ''} onClick={() => {

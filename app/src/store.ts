@@ -38,6 +38,10 @@ export interface AppState {
   sharedAt: number;
   /** 모두의 장비목록에 올린 사람 표시용 무작위 코드 (내 기기들끼리 동기화) */
   contributorId: string;
+  /** 배치 화면이 연결된 일정 (이 동안의 배치 변경은 그 일정에 자동 저장) */
+  activeTripId: string | null;
+  /** 일정 배치도를 꺼내보기 전의 배치 (일정 배치를 끝내면 되돌림) */
+  workspaceStash: { sites: Site[]; placements: Placement[]; campsite: AppState['campsite'] } | null;
   settings: Settings;
 }
 
@@ -72,6 +76,8 @@ const defaults: AppState = {
   sharedBrands: [],
   sharedAt: 0,
   contributorId: '',
+  activeTripId: null,
+  workspaceStash: null,
   settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '', adminCode: '' },
 };
 
