@@ -18,7 +18,8 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const customGear = useStore((s) => s.customGear);
   const owned = useStore((s) => s.owned);
   const wish = useStore((s) => s.wish);
-  const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear]);
+  const sharedGear = useStore((s) => s.sharedGear);
+  const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear, sharedGear]);
   const [brand, setBrand] = useState<string>(CORE_BRANDS[0]);
   const [q, setQ] = useState('');
   const [editing, setEditing] = useState<Gear | 'new' | null>(null);

@@ -13,6 +13,8 @@ export interface Env {
   DAILY_SEARCH_LIMIT?: string;
   /** (선택) 공공데이터포털 한국관광공사 고캠핑 정보 서비스 키 */
   GOCAMPING_KEY?: string;
+  /** (선택) 공유 장비목록을 올릴 수 있는 관리자 코드 */
+  ADMIN_CODE?: string;
   ALLOWED_ORIGINS: string;
   ROOMS: DurableObjectNamespace;
 }
@@ -287,6 +289,34 @@ export default {
         200,
         h,
       );
+    }
+
+    // 공유 장비목록: 누구나 읽기, 관리자 코드로만 올리기
+    if (url.pathname === '/catalog') {
+      const stub = env.ROOMS.get(env.ROOMS.idFromName('catalog:shared'));
+      if (req.method === 'GET') {
+        const r = await stub.fetch('https://room/doc');
+        if (r.status === 404) return json({ gear: [], brands: [], updatedAt: 0 }, 200, { ...h, 'cache-control': 'no-store' });
+        const st = (await r.json()) as { doc: object; updatedAt: number };
+        return json({ ...st.doc, updatedAt: st.updatedAt }, 200, { ...h, 'cache-control': 'no-store' });
+      }
+      if (req.method === 'PUT') {
+        const want = (env.ADMIN_CODE ?? '').trim();
+        if (!want) return json({ error: 'admin_disabled' }, 403, h);
+        if (!safeEqual(decodeHeader(req.headers.get('x-admin-code')), want)) return json({ error: 'admin_code_error' }, 401, h);
+        const body = await req.text();
+        if (body.length > MAX_DOC_BYTES * 2) return json({ error: 'too large' }, 413, h);
+        let doc: { gear?: unknown; brands?: unknown };
+        try {
+          doc = JSON.parse(body);
+        } catch {
+          return json({ error: 'bad json' }, 400, h);
+        }
+        if (!Array.isArray(doc.gear)) return json({ error: 'bad catalog' }, 400, h);
+        const clean = { gear: doc.gear, brands: Array.isArray(doc.brands) ? doc.brands : [] };
+        await stub.fetch('https://room/doc', { method: 'PUT', body: JSON.stringify(clean) });
+        return json({ ok: true, count: doc.gear.length }, 200, h);
+      }
     }
 
     // 캠핑장 검색 (고캠핑 프록시, 키 없으면 enabled:false → 앱이 OpenStreetMap 사용)

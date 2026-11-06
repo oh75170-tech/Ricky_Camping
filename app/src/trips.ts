@@ -12,7 +12,7 @@ export function snapshotLayout(): LayoutSnapshot {
   // 직접 추가했거나 수정한 장비는 장비 정보 자체를 같이 저장 (다른 기기·나중에 지워도 볼 수 있게)
   const gear: Gear[] = used
     .map((id) => gearMap.get(id))
-    .filter((g): g is Gear => !!g && (!!g.custom || !!s.overrides[g.id]));
+    .filter((g): g is Gear => !!g && (!!g.custom || !!g.shared || !!s.overrides[g.id]));
   const order = (c: string) => CATEGORIES.findIndex((x) => x.id === c);
   const gearList = used
     .map((id) => gearMap.get(id))
@@ -40,7 +40,7 @@ export function snapshotLayout(): LayoutSnapshot {
 export function applyLayout(snap: LayoutSnapshot) {
   setState((s) => {
     const have = new Set(allGear(s).map((g) => g.id));
-    const custom = snap.gear.filter((g) => g.custom && !have.has(g.id));
+    const custom = snap.gear.filter((g) => (g.custom || g.shared) && !have.has(g.id)).map((g) => ({ ...g, custom: true, shared: false }));
     return {
       ...s,
       customGear: [...s.customGear, ...custom],

@@ -4,6 +4,7 @@ import { DEFAULT_SERVER } from '../config';
 import { actions, getState, useStore } from '../store';
 import { Modal } from './Modal';
 import { DataPanel } from './DataPanel';
+import { PublishPanel } from './PublishPanel';
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const settings = useStore((s) => s.settings);
@@ -103,6 +104,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </select>
         </label>
         <DataPanel />
+        <PublishPanel />
         <div className="form-actions">
           <button
             type="button"
@@ -110,7 +112,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             onClick={() => {
               const cleared = { ...d, apiKey: '', passcode: '', searchCode: '' };
               setD(cleared);
-              actions.setSettings({ ...cleared, syncCode: getState().settings.syncCode });
+              actions.setSettings({ ...cleared, syncCode: getState().settings.syncCode, adminCode: '' });
             }}
           >
             키·코드 삭제
@@ -119,7 +121,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             type="button"
             className="btn primary"
             onClick={() => {
-              actions.setSettings({ ...d, syncCode: getState().settings.syncCode, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim(), searchCode: d.searchCode.trim() });
+              actions.setSettings({ ...d, syncCode: getState().settings.syncCode, adminCode: getState().settings.adminCode, serverUrl: d.serverUrl.trim(), apiKey: d.apiKey.trim(), passcode: d.passcode.trim(), searchCode: d.searchCode.trim() });
               onClose();
             }}
           >

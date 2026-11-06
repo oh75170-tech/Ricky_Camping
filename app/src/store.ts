@@ -13,6 +13,8 @@ export interface Settings {
   syncCode: string;
   /** AI 검색(웹 검색) 전용 코드 – 관리자가 따로 제공 */
   searchCode: string;
+  /** 장비목록 공유(올리기)용 관리자 코드 */
+  adminCode: string;
 }
 
 export interface AppState {
@@ -30,6 +32,10 @@ export interface AppState {
   home: HomePlace | null;
   /** 캠핑장별 자리번호 → 사이트 크기 기억 (m) */
   siteMemory: Record<string, Record<string, { w: number; h: number }>>;
+  /** 관리자가 공유한 장비목록 (서버에서 받아 둔 사본, 동기화·백업 대상 아님) */
+  sharedGear: Gear[];
+  sharedBrands: string[];
+  sharedAt: number;
   settings: Settings;
 }
 
@@ -60,13 +66,17 @@ const defaults: AppState = {
   trips: [],
   home: null,
   siteMemory: {},
-  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '' },
+  sharedGear: [],
+  sharedBrands: [],
+  sharedAt: 0,
+  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '', adminCode: '' },
 };
 
 function load(): AppState {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return defaults;
+    // 새로 설치한 사람은 빈 상태로 시작 (보유장비·일정·배치 없음)
+    if (!raw) return { ...defaults, seedVersion: 5 };
     const parsed = JSON.parse(raw) as Partial<AppState>;
     return {
       ...defaults,
@@ -123,11 +133,14 @@ export const uid = (p = 'id') => `${p}-${Date.now().toString(36)}-${Math.random(
 let cacheKey: unknown[] = [];
 let cacheVal: Gear[] = [];
 export function allGear(s: AppState): Gear[] {
-  if (cacheKey[0] === s.customGear && cacheKey[1] === s.overrides) return cacheVal;
-  const merged = [...BUILTIN_GEAR, ...s.customGear].map((g) =>
-    s.overrides[g.id] ? { ...g, ...s.overrides[g.id] } : g,
-  );
-  cacheKey = [s.customGear, s.overrides];
+  if (cacheKey[0] === s.customGear && cacheKey[1] === s.overrides && cacheKey[2] === s.sharedGear) return cacheVal;
+  // 기본 → 공유 장비목록 → 내가 추가한 장비 순으로 같은 id 는 뒤의 것이 이김
+  const byId = new Map<string, Gear>();
+  for (const g of BUILTIN_GEAR) byId.set(g.id, g);
+  for (const g of s.sharedGear) byId.set(g.id, { ...g, custom: false, shared: true });
+  for (const g of s.customGear) byId.set(g.id, g);
+  const merged = [...byId.values()].map((g) => (s.overrides[g.id] ? { ...g, ...s.overrides[g.id] } : g));
+  cacheKey = [s.customGear, s.overrides, s.sharedGear];
   cacheVal = merged;
   return merged;
 }
@@ -139,6 +152,8 @@ export function gearById(s: AppState, id: string): Gear | undefined {
 export function allBrands(s: AppState): string[] {
   const set = new Set<string>([...CORE_BRANDS]);
   BUILTIN_GEAR.forEach((g) => set.add(g.brand));
+  s.sharedBrands.forEach((b) => set.add(b));
+  s.sharedGear.forEach((g) => set.add(g.brand));
   s.extraBrands.forEach((b) => set.add(b));
   s.customGear.forEach((g) => set.add(g.brand));
   return [...set];
@@ -249,6 +264,10 @@ export const actions = {
   },
   setHome(home: HomePlace | null) {
     setState((s) => ({ ...s, home }));
+  },
+  /** 처음 상태로: 보유·위시·직접 추가 장비·배치·일정·집 위치 등을 모두 지움 (설정·공유 장비목록은 유지) */
+  resetData() {
+    setState((s) => ({ ...defaults, seedVersion: 5, settings: s.settings, sharedGear: s.sharedGear, sharedBrands: s.sharedBrands, sharedAt: s.sharedAt }));
   },
   clearLayout() {
     setState((s) => ({ ...s, placements: [] }));

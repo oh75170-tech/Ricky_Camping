@@ -1,8 +1,9 @@
 import { useRef, useState } from 'react';
-import { actions, useStore } from '../store';
+import { actions, getState, useStore } from '../store';
+import { deletePhotos } from '../photos';
 import { applyBackup, makeBackup, readBackup, type BackupFile, resolveConflict, syncNow, useCloudStatus } from '../cloud';
 import { downloadBlob } from '../share';
-import { IS_PREVIEW } from '../env';
+import { ask, IS_PREVIEW } from '../env';
 import { Icon } from './Icon';
 
 /** 설정 화면의 "내 데이터": 서버 자동 동기화 + 백업 파일 */
@@ -155,6 +156,23 @@ export function DataPanel() {
           </div>
         )}
         {msg && <p className="small notice">{msg}</p>}
+      </div>
+      <div className="data-box">
+        <b>처음 상태로 초기화</b>
+        <p className="muted small">보유·위시 목록, 직접 추가한 장비, 배치, 캠핑일정·사진, 집 위치를 모두 지워요. 설정(코드)과 공유 장비목록은 남아요. 내 데이터 동기화를 켜 두었다면 서버의 내 데이터도 비워져요.</p>
+        <button
+          type="button"
+          className="btn small ghost danger"
+          onClick={async () => {
+            if (!ask('정말 모두 지울까요? 되돌릴 수 없어요.\n(필요하면 먼저 백업 파일을 저장하세요)')) return;
+            const photos = getState().trips.flatMap((t) => t.photos ?? []);
+            if (photos.length) await deletePhotos(photos);
+            actions.resetData();
+            setMsg('처음 상태로 초기화했어요.');
+          }}
+        >
+          <Icon name="trash" size={14} /> 모두 지우고 새로 시작
+        </button>
       </div>
     </section>
   );
