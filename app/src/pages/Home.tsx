@@ -3,7 +3,7 @@ import { dday, fmtTripDates, isPastTrip } from '../trips';
 import { Icon } from '../components/Icon';
 import { IS_PREVIEW } from '../env';
 import { isNativeApp } from '../share';
-import illust from '../assets/home-illust.webp';
+import { HomeScene } from '../components/HomeScene';
 
 const INSTAGRAM = 'https://www.instagram.com/ricky_camping/';
 
@@ -76,7 +76,7 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
       )}
       <figure className="home-illust">
         <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer" aria-label="인스타그램 @ricky_camping 열기">
-          <img src={illust} alt="텐트 앞에서 커피를 마시는 캠핑 커플 일러스트" width={720} height={720} />
+          <HomeScene />
         </a>
         <figcaption>
           <a href={INSTAGRAM} target="_blank" rel="noopener noreferrer">
