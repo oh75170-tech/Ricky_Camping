@@ -417,10 +417,12 @@ a.btn { text-decoration: none; }
   25% { opacity: .55; }
   100% { opacity: 0; transform: translateY(-34px) scaleY(1.1); }
 }
-.lid { opacity: 0; animation: blink 5.2s infinite; }
-.lid-b { animation-duration: 6.3s; animation-delay: 1.7s; }
+.scene-lid { height: auto; opacity: 0; animation: blink 5.2s infinite; }
+.scene-lid.lid-a { width: 11.62% !important; }
+.scene-lid.lid-b { width: 11.91% !important; }
+.scene-lid.lid-b { animation-duration: 6.3s; animation-delay: 1.7s; }
 @keyframes blink { 0%, 93%, 100% { opacity: 0; } 94.5%, 97% { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .scene-cloud, .scene-lantern, .scene-glow, .steam, .lid { animation: none !important; }
-  .steam, .lid { opacity: 0; }
+  .scene-cloud, .scene-lantern, .scene-glow, .steam, .scene-lid { animation: none !important; }
+  .steam, .scene-lid { opacity: 0; }
 }
