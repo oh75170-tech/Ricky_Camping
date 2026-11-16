@@ -67,6 +67,65 @@ const key = (d: TripDoc) =>
     d.siteMemory,
   ]);
 
+// ───────── 안심 장치 ─────────
+const RESTORE_KEY = 'campcanvas-trips-restore';
+export interface RestorePoint {
+  at: number;
+  reason: string;
+  doc: TripDoc;
+}
+export function getRestorePoint(): RestorePoint | null {
+  try {
+    return JSON.parse(localStorage.getItem(RESTORE_KEY) || 'null');
+  } catch {
+    return null;
+  }
+}
+function saveRestorePoint(reason: string) {
+  try {
+    localStorage.setItem(RESTORE_KEY, JSON.stringify({ at: Date.now(), reason, doc: pick() } satisfies RestorePoint));
+  } catch {
+    /* 저장 불가 */
+  }
+  set({});
+}
+/** 동기화 직전 상태로 되돌리기 (되돌린 일정이 최신이 되어 다른 기기에도 다시 퍼짐) */
+export function restoreTrips() {
+  const r = getRestorePoint();
+  if (!r) return;
+  const now = Date.now();
+  const ids = new Set(r.doc.trips.map((t) => t.id));
+  setState((s) => ({
+    ...s,
+    trips: r.doc.trips.map((t) => ({ ...t, updatedAt: now })),
+    home: r.doc.home,
+    siteMemory: r.doc.siteMemory,
+    deletedTrips: Object.fromEntries(Object.entries(s.deletedTrips).filter(([id]) => !ids.has(id))),
+  }));
+  localStorage.removeItem(RESTORE_KEY);
+  set({});
+}
+
+/** 처음 켤 때 미리보기: 서버(내 다른 기기)와 이 기기 일정을 합치면 어떻게 되는지 */
+export async function previewTripMerge(): Promise<{ local: number; remote: number; merged: number; removed: number }> {
+  const s = getState().settings;
+  const base = serverUrl();
+  if (!s.syncCode || !s.passcode || !base) throw new Error('동기화 코드와 AI 접속 코드를 먼저 넣어주세요.');
+  const r = await fetch(`${base}/sync/${await hashOf()}`, { headers: headers() });
+  if (r.status === 401) throw new Error('접속 코드가 맞지 않아요.');
+  if (!r.ok) throw new Error(`서버 오류 (${r.status})`);
+  const remote = ((await r.json()) as { doc: { data: TripDoc } | null }).doc?.data ?? null;
+  const local = pick();
+  const merged = remote ? merge(local, remote) : local;
+  const keep = new Set(merged.trips.map((t) => t.id));
+  return {
+    local: local.trips.length,
+    remote: remote?.trips.length ?? 0,
+    merged: merged.trips.length,
+    removed: local.trips.filter((t) => !keep.has(t.id)).length,
+  };
+}
+
 let busy = false;
 let again = false;
 let applying = false;
@@ -89,7 +148,14 @@ export async function syncTripsNow(): Promise<void> {
     const remote = ((await r.json()) as { doc: { data: TripDoc } | null }).doc?.data ?? null;
     const local = pick();
     const merged = remote ? merge(local, remote) : local;
+    const localIds = new Set(local.trips.map((t) => t.id));
+    const mergedIds = new Set(merged.trips.map((t) => t.id));
+    const got = merged.trips.filter((t) => !localIds.has(t.id)).length;
+    const gone = local.trips.filter((t) => !mergedIds.has(t.id)).length;
+    const changed = merged.trips.filter((t) => localIds.has(t.id) && ts(t) !== ts(local.trips.find((x) => x.id === t.id)!)).length;
     if (key(merged) !== key(local)) {
+      // 다른 기기 내용으로 이 기기 일정이 바뀌기 직전 상태를 보관 (되돌리기용)
+      if (gone || changed) saveRestorePoint(gone ? `다른 기기에서 지운 일정 ${gone}개 반영` : `다른 기기에서 고친 일정 ${changed}개 반영`);
       applying = true;
       setState((s) => ({ ...s, ...merged }));
       applying = false;
@@ -103,7 +169,8 @@ export async function syncTripsNow(): Promise<void> {
       if (!p.ok) throw new Error(p.status === 413 ? '일정이 너무 많아 한 번에 올릴 수 없어요.' : `동기화 오류 (${p.status})`);
     }
     await syncPhotos(h, merged.trips);
-    set({ state: 'saved', message: '일정·사진 동기화됨', at: Date.now() });
+    const parts = [got && `받은 일정 ${got}개`, changed && `바뀐 일정 ${changed}개`, gone && `다른 기기에서 지운 일정 ${gone}개`].filter(Boolean);
+    set({ state: 'saved', message: `일정 ${merged.trips.length}개 동기화됨${parts.length ? ` · ${parts.join(' · ')}` : ''}`, at: Date.now() });
   } catch (e) {
     set({ state: 'error', message: (e as Error).message });
   } finally {
