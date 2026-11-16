@@ -430,3 +430,7 @@ a.btn { text-decoration: none; }
 .save-strip.dirty { background: var(--ink); color: #fff; }
 .sync-opt { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: var(--ink); line-height: 1.4; }
 .sync-opt input { margin-top: 2px; }
+.home { position: relative; }
+.home-settings { position: absolute; top: calc(14px + var(--safe-t)); right: 14px; color: var(--ink); width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: #fff; display: inline-flex; align-items: center; justify-content: center; }
+.gear-form label.sync-opt, label.sync-opt { flex-direction: row; display: flex; }
+.sync-opt input { flex: none; width: auto !important; }

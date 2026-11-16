@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { useStore } from '../store';
+import { SettingsModal } from '../components/SettingsModal';
 import { dday, fmtTripDates, isPastTrip } from '../trips';
 import { Icon } from '../components/Icon';
 import { IS_PREVIEW } from '../env';
@@ -12,8 +14,12 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
   const placed = useStore((s) => s.placements.length);
   const trips = useStore((s) => s.trips);
   const next = trips.filter((t) => !isPastTrip(t)).sort((a, b) => a.startDate.localeCompare(b.startDate))[0];
+  const [showSettings, setShowSettings] = useState(false);
   return (
     <div className="home">
+      <button className="icon-btn home-settings" onClick={() => setShowSettings(true)} aria-label="설정">
+        <Icon name="settings" size={24} />
+      </button>
       <div className="home-hero">
         <div className="logo"><Icon name="tent" size={56} stroke={1.2} /></div>
         <h1>CampCanvas</h1>
@@ -35,13 +41,18 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
           </span>
           {owned > 0 && <em>{owned}</em>}
         </button>
-        <button className="home-card primary" onClick={() => go('planner')}>
+        {/* 배치하던 것이 있을 때만 검은색 (일정과는 연결되지 않은 작업 중인 배치) */}
+        <button className={`home-card ${placed > 0 ? 'primary' : ''}`} onClick={() => go('planner')}>
           <span className="home-icon"><Icon name="map" size={30} stroke={1.3} /></span>
           <span>
             <b>장비배치</b>
-            <small>장비 고르기·직접 입력 · AI 채팅 · 텐트 더 놓기 · 공유</small>
+            <small>
+              {placed > 0
+                ? `배치하던 장비 ${placed}개가 있어요 · 일정에 반영하기 전까지는 이 기기에서만 보관돼요`
+                : '장비 고르기·직접 입력 · AI 채팅 · 텐트 더 놓기 · 공유'}
+            </small>
           </span>
-          {placed > 0 && <em>{placed}</em>}
+          {placed > 0 && <em>배치 중</em>}
         </button>
         <button className="home-card" onClick={() => go('trips')}>
           <span className="home-icon"><Icon name="calendar" size={30} stroke={1.3} /></span>
@@ -87,6 +98,7 @@ export function Home({ go }: { go: (p: 'catalog' | 'planner' | 'trips', id?: str
       <p className="home-foot muted small">
         제원의 "추정" 표시는 공식 자료로 확인하지 못한 값입니다. 구매·배치 전 공식 홈페이지에서 꼭 확인해주세요.
       </p>
+      {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
     </div>
   );
 }

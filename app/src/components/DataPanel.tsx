@@ -3,7 +3,7 @@ import { actions, getState, useStore } from '../store';
 import { deletePhotos } from '../photos';
 import { applyBackup, makeBackup, readBackup, type BackupFile, resolveConflict, syncNow, useCloudStatus } from '../cloud';
 import { downloadBlob } from '../share';
-import { syncTripsNow, useTripSyncStatus } from '../tripsync';
+import { getRestorePoint, previewTripMerge, restoreTrips, syncTripsNow, useTripSyncStatus } from '../tripsync';
 import { ask, IS_PREVIEW } from '../env';
 import { Icon } from './Icon';
 
@@ -14,6 +14,8 @@ export function DataPanel() {
   const cloud = useCloudStatus();
   const syncTrips = useStore((s) => s.settings.syncTrips);
   const trip = useTripSyncStatus();
+  const restore = getRestorePoint();
+  const [preview, setPreview] = useState<{ busy: boolean; local?: number; remote?: number; merged?: number; removed?: number } | null>(null);
   const [draft, setDraft] = useState(code);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, setPending] = useState<({ name: string } & BackupFile) | null>(null);
@@ -77,13 +79,16 @@ export function DataPanel() {
           )}
           {cloud.state === 'conflict' && cloud.remote && (
             <div className="notice small">
-              서버에 저장된 데이터와 이 기기의 데이터가 둘 다 있어요. 어느 쪽을 쓸까요?
+              <b>장비 목록</b>이 내 다른 기기(서버)와 이 기기가 서로 달라요. 어떻게 할까요? (일정은 여기와 상관없어요)
               <div className="form-actions" style={{ marginTop: 8 }}>
-                <button type="button" className="btn small ghost" onClick={() => resolveConflict(false)}>
-                  이 기기 데이터로 덮어쓰기
+                <button type="button" className="btn small primary" onClick={() => resolveConflict('merge')}>
+                  둘 다 합치기 (추천)
                 </button>
-                <button type="button" className="btn small primary" onClick={() => resolveConflict(true)}>
-                  서버 데이터 불러오기
+                <button type="button" className="btn small" onClick={() => resolveConflict('server')}>
+                  다른 기기 것으로 이 기기 바꾸기
+                </button>
+                <button type="button" className="btn small ghost" onClick={() => resolveConflict('local')}>
+                  이 기기 것으로 다른 기기 바꾸기
                 </button>
               </div>
             </div>
@@ -96,13 +101,72 @@ export function DataPanel() {
               type="checkbox"
               checked={syncTrips}
               disabled={!code}
-              onChange={(e) => {
-                actions.setSettings({ syncTrips: e.target.checked });
-                if (e.target.checked) syncTripsNow();
+              onChange={async (e) => {
+                if (!e.target.checked) return actions.setSettings({ syncTrips: false });
+                // 켜기 전에 합친 결과를 먼저 보여주고 확인받음
+                setPreview({ busy: true });
+                try {
+                  setPreview({ busy: false, ...(await previewTripMerge()) });
+                } catch (err) {
+                  setPreview(null);
+                  setMsg((err as Error).message);
+                }
               }}
             />{' '}
-            캠핑일정·사진·집 위치 (켜면 내 다른 기기와 합쳐져요)
+            캠핑일정·사진·집 위치 — 기기마다 합쳐져요 (지운 일정만 지워지고, 비어 있는 기기 때문에 일정이 사라지지 않아요)
           </label>
+          {preview && (
+            <div className="notice small">
+              {preview.busy ? (
+                '내 다른 기기(서버)의 일정을 확인하는 중…'
+              ) : (
+                <>
+                  <b>합치기 미리보기</b>
+                  <br />
+                  이 기기 일정 {preview.local}개 + 내 다른 기기 일정 {preview.remote}개 → 합치면 <b>{preview.merged}개</b>
+                  <br />
+                  {preview.removed
+                    ? `다른 기기에서 지운 일정 ${preview.removed}개는 이 기기에서도 지워져요(되돌리기 가능).`
+                    : '양쪽 일정이 모두 남아요. 비어 있는 기기가 있어도 다른 기기 일정이 지워지지 않아요.'}
+                  <div className="form-actions" style={{ marginTop: 8 }}>
+                    <button type="button" className="btn small ghost" onClick={() => setPreview(null)}>
+                      취소
+                    </button>
+                    <button
+                      type="button"
+                      className="btn small primary"
+                      onClick={() => {
+                        setPreview(null);
+                        actions.setSettings({ syncTrips: true });
+                        syncTripsNow();
+                      }}
+                    >
+                      합치고 동기화 켜기
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+          {restore && (
+            <div className="row small">
+              <span className="muted">
+                {new Date(restore.at).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })} {restore.reason} 직전 상태 보관 중
+              </span>
+              <button
+                type="button"
+                className="link"
+                onClick={() => {
+                  if (ask(`일정을 동기화 직전 상태(일정 ${restore.doc.trips.length}개)로 되돌릴까요?\n되돌린 내용이 다른 기기에도 다시 반영돼요.`)) {
+                    restoreTrips();
+                    setMsg('일정을 되돌렸어요.');
+                  }
+                }}
+              >
+                되돌리기
+              </button>
+            </div>
+          )}
           {code && syncTrips && trip.message && (
             <div className="row small">
               <span className={`status-dot ${trip.state === 'saved' ? 'on' : ''}`} />

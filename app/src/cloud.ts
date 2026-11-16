@@ -193,10 +193,36 @@ export async function syncNow(opts: { firstConnect?: boolean } = {}) {
 }
 
 /** 충돌 시 사용자의 선택 */
-export async function resolveConflict(useServer: boolean) {
+export async function resolveConflict(choice: 'merge' | 'server' | 'local') {
   const r = status.remote;
   saveMeta({ ...meta(), code: getState().settings.syncCode });
-  if (useServer && r) {
+  if (choice === 'merge' && r) {
+    // 둘 다 살리기: 장비는 id 기준 합치기(같은 장비는 이 기기 것), 보유·위시는 합집합
+    const l = pickSync();
+    const d = r.data;
+    const gear = new Map(d.customGear.map((g) => [g.id, g]));
+    l.customGear.forEach((g) => gear.set(g.id, g));
+    applying = true;
+    applyData(
+      {
+        customGear: [...gear.values()],
+        overrides: { ...d.overrides, ...l.overrides },
+        owned: [...new Set([...d.owned, ...l.owned])],
+        wish: [...new Set([...d.wish, ...l.wish])],
+        extraBrands: [...new Set([...d.extraBrands, ...l.extraBrands])],
+        seedVersion: Math.max(d.seedVersion ?? 0, l.seedVersion ?? 0),
+        contributorId: l.contributorId || d.contributorId,
+      },
+      SYNC_KEYS,
+    );
+    const s = getState();
+    last = SYNC_KEYS.map((k) => s[k]);
+    applying = false;
+    saveMeta({ ...meta(), localUpdatedAt: Date.now() });
+    set({ remote: null });
+    await push();
+    set({ message: '양쪽 장비를 합쳤어요' });
+  } else if (choice === 'server' && r) {
     applyRemote(r.data, r.updatedAt);
     set({ state: 'saved', message: '서버 데이터를 불러왔어요', savedAt: Date.now(), remote: null });
   } else {
