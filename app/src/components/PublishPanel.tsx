@@ -6,6 +6,7 @@ import { ask } from '../env';
 /** 모두의 장비목록 안내 + 관리자(삭제) 도구 */
 export function PublishPanel() {
   const adminSaved = useStore((s) => s.settings.adminCode);
+  const shareGear = useStore((s) => s.settings.shareGear);
   const shared = useStore((s) => s.sharedGear);
   const sharedAt = useStore((s) => s.sharedAt);
   const custom = useStore((s) => s.customGear);
@@ -24,9 +25,21 @@ export function PublishPanel() {
   return (
     <section className="data-panel">
       <div className="data-box">
-        <b>모두의 장비목록</b>
+        <b>다른 사람과 장비 공유 (모두의 장비목록)</b>
+        <label className="sync-opt">
+          <input
+            type="checkbox"
+            checked={shareGear}
+            onChange={(e) => {
+              actions.setSettings({ shareGear: e.target.checked });
+              if (e.target.checked) pushMyGear();
+            }}
+          />{' '}
+          내가 추가·수정한 장비를 다른 사용자도 볼 수 있게 공유
+        </label>
         <p className="muted small">
-          직접 추가하거나 AI·웹 검색으로 추가한 장비는 자동으로 모든 사용자의 장비목록에 올라가요(보유·위시·일정·배치는 올라가지 않아요). 지금 모두의 장비{' '}
+          {shareGear ? '켜져 있으면 장비를 저장할 때 모두의 장비목록에도 올라가요.' : '꺼져 있으면 새로 추가한 장비는 내 기기에만 있어요(이미 올린 장비는 아래 관리자/내 장비 삭제로 지울 수 있어요).'}{' '}
+          장비 정보만 공유되고 보유·위시·일정·사진·배치는 공유되지 않아요. 지금 모두의 장비{' '}
           {shared.length}개 · 내가 올린 장비 {myShared}개
           {sharedAt ? ` · ${new Date(sharedAt).toLocaleString('ko-KR', { dateStyle: 'short', timeStyle: 'short' })} 기준` : ''}
         </p>

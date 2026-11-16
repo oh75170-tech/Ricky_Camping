@@ -4,6 +4,8 @@ import { TripMap } from '../components/TripMap';
 import { HomeModal } from '../components/HomeModal';
 import { PhotoThumb, PhotoViewer, TripPhotoSlots } from '../components/TripPhotos';
 import { deletePhotos } from '../photos';
+import { setLeaveGuard } from '../nav';
+import { Modal } from '../components/Modal';
 import { CATEGORIES, SITE_FLOORS, type Place, type SiteFloor, type Trip } from '../types';
 import { actions, getState, useStore } from '../store';
 import { ask, IS_PREVIEW } from '../env';
@@ -19,7 +21,7 @@ import {
   type RouteInfo,
   type WeatherResult,
 } from '../geo';
-import { campKey, linkCurrentLayout, openTripLayout, dday, fmtTripDates, isPastTrip, lookupSiteSize, newTrip, siteKey, todayStr } from '../trips';
+import { campKey, copyLayoutToTrip, startTripEdit, dday, fmtTripDates, isPastTrip, lookupSiteSize, newTrip, siteKey, todayStr } from '../trips';
 
 const floorLabel = (f: SiteFloor | '') => SITE_FLOORS.find((x) => x.id === f)?.label ?? '';
 const catLabel = (c: string) => CATEGORIES.find((x) => x.id === c)?.label ?? c;
@@ -157,19 +159,33 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
   const placements = useStore((s) => s.placements.length);
   const [showHome, setShowHome] = useState(false);
 
-  // 기존 일정은 바뀔 때마다 자동 저장, 새 일정은 "저장"을 누를 때 처음 저장
-  const update = (patch: Partial<Trip>) => {
-    setT((x) => {
-      const next = { ...x, ...patch };
-      if (saved) actions.saveTrip(next);
-      return next;
-    });
-  };
+  // 고친 내용은 [저장]을 눌러야 이 기기에 저장됨 (자동 저장 없음)
+  const update = (patch: Partial<Trip>) => setT((x) => ({ ...x, ...patch }));
   const setPlace = (p: Partial<Place>) => update({ place: { ...t.place, ...p } });
+  const stored = useStore((s) => s.trips.find((x) => x.id === initial.id));
+  const syncOn = useStore((s) => !!s.settings.syncCode && s.settings.syncTrips);
+  const removedPhotos = useRef<string[]>([]);
+  const strip = (x: Trip | undefined) => (x ? JSON.stringify({ ...x, layout: undefined, updatedAt: undefined }) : '');
+  const dirty = saved ? strip(t) !== strip(stored) : !!(t.place.name || t.title || t.photos?.length || t.memo);
+  const [justSaved, setJustSaved] = useState(false);
+  const [leave, setLeave] = useState(false);
 
   const save = () => {
-    actions.saveTrip(t);
+    // 배치도는 배치 화면에서 따로 저장하므로 저장된 배치도를 그대로 유지
+    actions.saveTrip({ ...t, layout: getState().trips.find((x) => x.id === t.id)?.layout ?? t.layout });
+    if (removedPhotos.current.length) deletePhotos(removedPhotos.current);
+    removedPhotos.current = [];
     setSaved(true);
+    remember();
+    setJustSaved(true);
+    setTimeout(() => setJustSaved(false), 2500);
+  };
+  /** 저장 안 하고 나가기: 새로 넣은 사진 파일은 지움 */
+  const discard = () => {
+    const keep = new Set(stored?.photos ?? []);
+    const added = (t.photos ?? []).filter((id) => !keep.has(id));
+    if (added.length) deletePhotos(added);
+    removedPhotos.current = [];
   };
 
   // ── 자리번호 → 크기 기억 (입력을 마치거나 화면을 나갈 때 저장)
@@ -179,7 +195,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
     const x = tRef.current;
     if (x.place.name && x.siteNo && x.siteW && x.siteH) actions.rememberSite(campKey(x.place.name), siteKey(x.siteNo), x.siteW, x.siteH);
   };
-  useEffect(() => remember, []);
+
   /** 크기가 어디서 자동으로 들어왔는지 (직접 고치면 null) */
   const [autoSrc, setAutoSrc] = useState<'memory' | 'single' | null>(null);
   const [sizeNote, setSizeNote] = useState('');
@@ -300,36 +316,48 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
     };
   }, [t.place.lat, t.place.lng, t.startDate, t.endDate]);
 
-  // ── 배치도: 꺼내면 배치 화면이 이 일정에 연결되어 고치는 대로 자동 저장
-  const activeTripId = useStore((s) => s.activeTripId);
-  const ensureSaved = () => {
-    if (!saved) {
-      actions.saveTrip(tRef.current);
-      setSaved(true);
-    }
-  };
+  // ── 배치도: [배치 확인·수정]으로 배치 화면에 꺼내고, 배치 화면의 [일정에 저장]으로만 저장
+  const editingTripId = useStore((s) => s.editingTripId);
   const openLayout = () => {
-    ensureSaved();
-    remember();
-    openTripLayout(t.id);
+    if (dirty || !saved) save(); // 배치 화면으로 가기 전에 고친 일정 내용 저장
+    startTripEdit(t.id);
     onPlanner();
   };
   const importCurrent = () => {
-    ensureSaved();
-    linkCurrentLayout(t.id);
-    const fresh = getState().trips.find((x) => x.id === t.id);
-    if (fresh) setT(fresh);
+    if (!ask(`배치 화면의 지금 배치(장비 ${placements}개)를 이 일정 배치도로 저장할까요?`)) return;
+    if (dirty || !saved) save();
+    copyLayoutToTrip(t.id);
   };
+  const layout = stored?.layout ?? t.layout;
 
   const remove = () => {
     if (!ask(`"${tripName(t)}" 일정을 삭제할까요?${t.photos?.length ? `\n사진 ${t.photos.length}장도 함께 지워져요.` : ''}`)) return;
-    if (t.photos?.length) deletePhotos(t.photos);
+    deletePhotos([...new Set([...(t.photos ?? []), ...(stored?.photos ?? [])])]);
     actions.removeTrip(t.id);
+    leaving.current = true;
     onClose();
   };
 
-  const back = () => {
-    if (!saved && (t.place.name || t.title) && ask('저장하지 않은 새 일정이에요. 저장할까요?')) actions.saveTrip(t);
+  // 기기 뒤로가기 포함: 저장 안 한 내용이 있으면 물어봄
+  const dirtyRef = useRef(dirty);
+  dirtyRef.current = dirty;
+  const leaving = useRef(false);
+  useEffect(() => {
+    setLeaveGuard(() => {
+      if (dirtyRef.current && !leaving.current) {
+        setLeave(true);
+        return false;
+      }
+      return true;
+    });
+    return () => setLeaveGuard(null);
+  }, []);
+  const back = () => (dirty ? setLeave(true) : onClose());
+  const leaveNow = (doSave: boolean) => {
+    if (doSave) save();
+    else discard();
+    leaving.current = true;
+    setLeave(false);
     onClose();
   };
 
@@ -340,14 +368,10 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
   const zoneHint = hint && (hint.w !== t.siteW || hint.h !== t.siteH) ? hint : null;
   const showPhotos = past || (!!t.startDate && t.startDate <= todayStr()) || !!t.photos?.length;
   const setPhotos = (ids: string[], removed?: string[]) => {
-    if (removed?.length) deletePhotos(removed);
-    if (saved) update({ photos: ids });
-    else {
-      const next = { ...t, photos: ids };
-      setT(next);
-      actions.saveTrip(next);
-      setSaved(true);
-    }
+    // 지운 사진: 저장된 사진이면 [저장]할 때 지우고, 방금 넣은 사진이면 바로 지움
+    const keep = new Set(stored?.photos ?? []);
+    for (const id of removed ?? []) (keep.has(id) ? removedPhotos.current.push(id) : deletePhotos([id]));
+    update({ photos: ids });
   };
 
   return (
@@ -360,16 +384,20 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
           {isNew && !saved ? '새 일정' : tripName(t)}
           <small className="topbar-sub">{fmtTripDates(t)}</small>
         </h1>
-        {saved ? (
-          <span className="site-badge">
-            <Icon name="check" size={14} /> 자동 저장
-          </span>
-        ) : (
+        {dirty ? (
           <button className="btn small primary" onClick={save}>
             저장
           </button>
+        ) : (
+          <span className="site-badge">
+            <Icon name="check" size={14} /> {justSaved ? '저장했어요' : '저장됨'}
+          </span>
         )}
       </header>
+      <div className={`save-strip ${dirty ? 'dirty' : ''}`}>
+        {dirty ? '고친 내용이 있어요 · [저장]을 눌러야 남아요' : '저장된 상태'} · 저장 위치: 이 기기
+        {syncOn ? ' + 내 다른 기기(일정 동기화 켜짐)' : ' (설정 → 내 데이터에서 다른 기기 동기화를 켤 수 있어요)'}
+      </div>
       <div className="catalog-body trips-body trip-edit">
         {/* 날짜 */}
         <section className="trip-sec">
@@ -467,7 +495,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
             <div className="row nowrap">
               <label style={{ flex: 1 }}>
                 몇 번 자리
-                <input value={t.siteNo} onChange={(e) => onSiteNo(e.target.value)} onBlur={remember} placeholder="예: A-12" />
+                <input value={t.siteNo} onChange={(e) => onSiteNo(e.target.value)} placeholder="예: A-12" />
               </label>
               <label style={{ flex: 1.4 }}>
                 사이트 크기 (m)
@@ -480,7 +508,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                     step={0.5}
                     value={t.siteW ?? ''}
                     onChange={(e) => setSize({ siteW: e.target.value ? Number(e.target.value) : undefined })}
-                    onBlur={remember}
+                   
                     placeholder="가로"
                   />
                   <span>×</span>
@@ -492,7 +520,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                     step={0.5}
                     value={t.siteH ?? ''}
                     onChange={(e) => setSize({ siteH: e.target.value ? Number(e.target.value) : undefined })}
-                    onBlur={remember}
+                   
                     placeholder="세로"
                   />
                 </div>
@@ -504,7 +532,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                 <span className="small">
                   {zoneHint.kind === 'exact' ? `${t.siteNo} 지난 기록:` : `${zoneHint.zone}구역 기록(${zoneHint.n}곳):`}
                 </span>
-                <button type="button" className="chip" onClick={() => (setSize({ siteW: zoneHint.w, siteH: zoneHint.h }), setTimeout(remember))}>
+                <button type="button" className="chip" onClick={() => setSize({ siteW: zoneHint.w, siteH: zoneHint.h })}>
                   {zoneHint.w}×{zoneHint.h}m 넣기
                 </button>
               </div>
@@ -639,19 +667,19 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
         {/* 배치도 + 장비 목록 */}
         <section className="trip-sec">
           <h3><Icon name="tent" size={18} /> 배치도 · {past ? '썼던 장비' : '가져갈 장비'}</h3>
-          {t.layout ? (
+          {layout?.placements.length ? (
             <>
               <p className="muted small">
-                {new Date(t.layout.savedAt).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })} 저장 · 사이트{' '}
-                {t.layout.campsite.w}×{t.layout.campsite.h}m · 그룹 {t.layout.sites.length}개
+                {new Date(layout.savedAt).toLocaleString('ko-KR', { dateStyle: 'medium', timeStyle: 'short' })} 저장 · 사이트{' '}
+                {layout.campsite.w}×{layout.campsite.h}m · 그룹 {layout.sites.length}개
               </p>
               <div className="row">
                 <button className="btn small primary" onClick={openLayout}>
-                  배치도 꺼내보기 · 수정
+                  배치 확인·수정
                 </button>
-                {activeTripId === t.id && <span className="muted small">배치 화면에 꺼내져 있어요</span>}
+                {editingTripId === t.id && <span className="muted small">배치 화면에서 수정 중 (저장 안 됨)</span>}
               </div>
-              <p className="muted small">배치 화면에서 고치면 이 일정 배치도에 자동으로 저장돼요.</p>
+              <p className="muted small">배치 화면에서 고친 뒤 위쪽 막대의 [일정에 저장]을 눌러야 이 일정에 저장돼요.</p>
               <table className="trip-gear">
                 <thead>
                   <tr>
@@ -662,7 +690,7 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
                   </tr>
                 </thead>
                 <tbody>
-                  {t.layout.gearList.map((g) => (
+                  {layout.gearList.map((g) => (
                     <tr key={g.id}>
                       <td>{catLabel(g.category)}</td>
                       <td>
@@ -678,13 +706,13 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
           ) : (
             <>
               <p className="muted small">
-                아직 배치도가 없어요. <b>배치 시작하기</b>를 누르면 이 일정의 사이트 크기로 배치 화면이 열리고, 놓는 장비가 이 일정에 자동으로 저장돼요.
+                아직 배치도가 없어요. <b>배치 시작하기</b>를 누르면 이 일정의 사이트 크기로 배치 화면이 열려요. 다 놓은 뒤 [일정에 저장]을 눌러주세요.
               </p>
               <div className="row">
                 <button className="btn small primary" onClick={openLayout}>
-                  이 일정 배치 시작하기
+                  배치 시작하기
                 </button>
-                {!activeTripId && placements > 0 && (
+                {!editingTripId && placements > 0 && (
                   <button className="btn small" onClick={importCurrent}>
                     배치 화면의 장비 가져오기 ({placements}개)
                   </button>
@@ -701,18 +729,35 @@ function TripEditor({ initial, isNew, onClose, onPlanner }: { initial: Trip; isN
         </section>
 
         <div className="form-actions">
-          {saved ? (
+          {saved && (
             <button className="btn ghost danger" onClick={remove}>
               <Icon name="trash" size={16} /> 일정 삭제
             </button>
-          ) : (
-            <button className="btn primary" onClick={save}>
-              일정 저장
-            </button>
           )}
+          <button className="btn primary" onClick={save} disabled={!dirty}>
+            {dirty ? '일정 저장' : '저장됨'}
+          </button>
         </div>
       </div>
       {showHome && <HomeModal onClose={() => setShowHome(false)} />}
+      {leave && (
+        <Modal title="저장하지 않은 내용이 있어요" onClose={() => setLeave(false)}>
+          <div className="gear-form">
+            <p style={{ color: 'var(--ink)' }}>"{tripName(t)}" 일정에서 고친 내용을 저장할까요?</p>
+            <div className="form-actions">
+              <button className="btn ghost" onClick={() => setLeave(false)}>
+                계속 고치기
+              </button>
+              <button className="btn" onClick={() => leaveNow(false)}>
+                저장 안 함
+              </button>
+              <button className="btn primary" onClick={() => leaveNow(true)}>
+                저장하고 나가기
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

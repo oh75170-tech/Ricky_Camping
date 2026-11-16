@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { canLeave } from './nav';
 import { Home } from './pages/Home';
 import { Catalog } from './pages/Catalog';
 import { Planner } from './pages/Planner';
@@ -35,27 +36,35 @@ const depth = () => (history.state as { idx?: number } | null)?.idx ?? 0;
 
 export default function App() {
   const [route, setRoute] = useState<Route>(() => (IS_PREVIEW ? { page: 'home', tripId: null } : parse()));
+  const routeRef = useRef(route);
+  routeRef.current = route;
 
   useEffect(() => {
     if (IS_PREVIEW) return;
     if (history.state == null) history.replaceState({ idx: 0 }, '', location.hash || '#/');
-    const on = () => setRoute(parse());
-    window.addEventListener('popstate', on);
-    window.addEventListener('hashchange', on);
-    return () => {
-      window.removeEventListener('popstate', on);
-      window.removeEventListener('hashchange', on);
+    const on = () => {
+      // 저장 안 한 내용이 있으면 뒤로가기를 되돌리고 화면에서 물어봄
+      if (!canLeave()) {
+        history.pushState({ idx: depth() + 1 }, '', hashOf(routeRef.current));
+        return;
+      }
+      setRoute(parse());
     };
+    // 주소의 # 부분이 바뀌어도 popstate 가 오므로 이것만 들음 (hashchange 까지 들으면 두 번 처리됨)
+    window.addEventListener('popstate', on);
+    return () => window.removeEventListener('popstate', on);
   }, []);
 
   /** 새 화면으로 이동 (뒤로가기로 돌아올 수 있게 기록) */
   const go = (page: Page, tripId: string | null = null) => {
+    if (!canLeave()) return;
     const r = { page, tripId };
     if (!IS_PREVIEW) history.pushState({ idx: depth() + 1 }, '', hashOf(r));
     setRoute(r);
   };
   /** 뒤로: 앱 안에서 온 화면이 있으면 그리로, 없으면 지정한 화면으로 */
   const back = (fallback: Route) => {
+    if (!canLeave()) return;
     if (!IS_PREVIEW && depth() > 0) return history.back();
     if (!IS_PREVIEW) history.replaceState({ idx: 0 }, '', hashOf(fallback));
     setRoute(fallback);

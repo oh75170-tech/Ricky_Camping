@@ -3,7 +3,7 @@ import { useMemo, useRef, useState } from 'react';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
 import { CATEGORIES, type Gear } from '../types';
 import { GearCard } from '../components/GearCard';
-import { GearForm } from '../components/GearForm';
+import { GearForm, saveWhere } from '../components/GearForm';
 import { Modal } from '../components/Modal';
 import { SettingsModal } from '../components/SettingsModal';
 import { getQuota, lookupGear, normalizeGear, NoKeyError, searchReady } from '../ai';
@@ -21,6 +21,8 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
   const wish = useStore((s) => s.wish);
   const sharedGear = useStore((s) => s.sharedGear);
   const adminCode = useStore((s) => s.settings.adminCode);
+  const shareGear = useStore((s) => s.settings.shareGear);
+  const syncCode = useStore((s) => s.settings.syncCode);
   const brands = useMemo(() => allBrands(getState()), [extraBrands, customGear, sharedGear]);
   const [brand, setBrand] = useState<string>(CORE_BRANDS[0]);
   const [q, setQ] = useState('');
@@ -469,11 +471,12 @@ export function Catalog({ onBack, onPlan }: { onBack: () => void; onPlan: () => 
           })}
           {!ai.verifyOf && ai.items.length > 0 && (
             <div className="sticky-actions">
+              <span className="muted small" style={{ flexBasis: '100%' }}>{saveWhere(shareGear, !!syncCode)}</span>
               <button className="btn ghost" onClick={() => setAi({ ...ai, selected: ai.selected.length === ai.items.length ? [] : ai.items.map((_, i) => i) })}>
                 {ai.selected.length === ai.items.length ? '전체 해제' : '전체 선택'}
               </button>
               <button className="btn primary" disabled={!ai.selected.length} onClick={addSelected}>
-                선택한 {ai.selected.length}개 장비목록에 추가
+                선택한 {ai.selected.length}개 장비목록에 저장
               </button>
             </div>
           )}

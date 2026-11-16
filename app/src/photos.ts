@@ -132,14 +132,36 @@ async function photoUrls(id: string) {
 /** 사진 주소 (undefined: 불러오는 중, null: 이 기기에 없음) */
 export function usePhoto(id: string, kind: 'thumb' | 'full'): string | null | undefined {
   const [url, setUrl] = useState<string | null | undefined>(() => urls.get(id)?.[kind]);
+  const [ver, setVer] = useState(0);
+  useEffect(() => {
+    const l = () => setVer((v) => v + 1);
+    arrived.add(l);
+    return () => void arrived.delete(l);
+  }, []);
   useEffect(() => {
     let alive = true;
     photoUrls(id).then((u) => alive && setUrl(u ? u[kind] : null));
     return () => {
       alive = false;
     };
-  }, [id, kind]);
+  }, [id, kind, ver]);
   return url;
+}
+
+// ───────── 내 기기 간 동기화용 ─────────
+const arrived = new Set<() => void>(); // 다른 기기에서 사진을 받아오면 화면 갱신
+
+export async function hasPhoto(id: string) {
+  return !!(await get(id));
+}
+export async function getPhotoBlob(id: string): Promise<Blob | null> {
+  return (await get(id))?.full ?? null;
+}
+/** 받은 원본으로 저장 (썸네일은 이 기기에서 만듦) */
+export async function putPhotoBlob(id: string, full: Blob) {
+  const img = await loadImage(full);
+  await put({ id, full, thumb: await resize(img, 480, 0.78), createdAt: Date.now() });
+  arrived.forEach((l) => l());
 }
 
 // ───────── 백업 파일용 ─────────

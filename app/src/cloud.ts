@@ -99,7 +99,7 @@ function saveMeta(m: { localUpdatedAt: number; code: string }) {
   }
 }
 
-async function sha256(text: string) {
+export async function sha256(text: string) {
   const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`campcanvas:${text.trim()}`));
   return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');
 }

@@ -393,6 +393,25 @@ export default {
     }
 
     // 내 데이터 동기화: /sync/<동기화 코드의 SHA-256 해시>  (접속 코드 필요)
+    // 내 기기 간 일정 사진: /sync/<해시>/photo/<사진 id>
+    const pm = url.pathname.match(/^\/sync\/([a-f0-9]{64})\/photo\/([\w-]{1,64})$/);
+    if (pm) {
+      if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
+      const stub = env.ROOMS.get(env.ROOMS.idFromName(`syncph:${pm[1]}`));
+      if (req.method === 'GET') {
+        const r = await stub.fetch(`https://room/blob/${pm[2]}`);
+        if (!r.ok) return json({ error: 'not found' }, 404, h);
+        return new Response(r.body, { status: 200, headers: { ...h, 'content-type': 'image/jpeg', 'cache-control': 'no-store' } });
+      }
+      if (req.method === 'PUT') {
+        const buf = await req.arrayBuffer();
+        if (buf.byteLength > 1_800_000) return json({ error: 'too large' }, 413, h);
+        await stub.fetch(`https://room/blob/${pm[2]}`, { method: 'PUT', body: buf });
+        return json({ ok: true }, 200, h);
+      }
+      return json({ error: 'method' }, 405, h);
+    }
+
     const sm = url.pathname.match(/^\/sync\/([a-f0-9]{64})$/);
     if (sm) {
       if (!passcodeOk(req, env)) return json({ error: 'passcode_error' }, 401, h);
@@ -473,6 +492,16 @@ export class Room implements DurableObject {
         await this.ctx.storage.put('count', count);
       }
       return new Response(JSON.stringify({ count }), { headers: { 'content-type': 'application/json' } });
+    }
+    // 사진 파일 (내 기기 간 일정 사진)
+    const bm = url.pathname.match(/^\/blob\/([\w-]{1,64})$/);
+    if (bm) {
+      if (req.method === 'PUT') {
+        await this.ctx.storage.put(`b:${bm[1]}`, await req.arrayBuffer());
+        return new Response('ok');
+      }
+      const b = await this.ctx.storage.get<ArrayBuffer>(`b:${bm[1]}`);
+      return b ? new Response(b) : new Response('not found', { status: 404 });
     }
     // 모두의 장비목록 (장비마다 따로 저장: item:<id>)
     if (url.pathname === '/cat/list') {
