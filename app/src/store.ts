@@ -15,6 +15,10 @@ export interface Settings {
   searchCode: string;
   /** 장비목록 공유(올리기)용 관리자 코드 */
   adminCode: string;
+  /** 내 다른 기기와 캠핑일정·사진도 동기화 */
+  syncTrips: boolean;
+  /** 내가 추가한 장비를 모두의 장비목록에 공유 */
+  shareGear: boolean;
 }
 
 export interface AppState {
@@ -38,10 +42,12 @@ export interface AppState {
   sharedAt: number;
   /** 모두의 장비목록에 올린 사람 표시용 무작위 코드 (내 기기들끼리 동기화) */
   contributorId: string;
-  /** 배치 화면이 연결된 일정 (이 동안의 배치 변경은 그 일정에 자동 저장) */
-  activeTripId: string | null;
-  /** 일정 배치도를 꺼내보기 전의 배치 (일정 배치를 끝내면 되돌림) */
+  /** 배치 화면에서 배치를 수정 중인 일정 ([일정에 저장]을 눌러야 일정에 저장됨) */
+  editingTripId: string | null;
+  /** 일정 배치를 수정하기 전에 하던 배치 (수정을 끝내면 되돌림) */
   workspaceStash: { sites: Site[]; placements: Placement[]; campsite: AppState['campsite'] } | null;
+  /** 지운 일정 (기기 간 동기화에서 되살아나지 않게) id → 지운 시각 */
+  deletedTrips: Record<string, number>;
   settings: Settings;
 }
 
@@ -76,9 +82,10 @@ const defaults: AppState = {
   sharedBrands: [],
   sharedAt: 0,
   contributorId: '',
-  activeTripId: null,
+  editingTripId: null,
+  deletedTrips: {},
   workspaceStash: null,
-  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '', adminCode: '' },
+  settings: { aiMode: 'server', apiKey: '', passcode: '', serverUrl: '', model: 'claude-opus-5-5', syncCode: '', searchCode: '', adminCode: '', syncTrips: false, shareGear: true },
 };
 
 function load(): AppState {
@@ -87,6 +94,16 @@ function load(): AppState {
     // 새로 설치한 사람은 빈 상태로 시작 (보유장비·일정·배치 없음)
     if (!raw) return { ...defaults, seedVersion: 5 };
     const parsed = JSON.parse(raw) as Partial<AppState>;
+    // 예전 '일정 자동 연결' 상태는 풀고, 연결 전에 하던 배치로 되돌림
+    const old = parsed as { activeTripId?: string | null; workspaceStash?: AppState['workspaceStash'] };
+    if (old.activeTripId) {
+      const st = old.workspaceStash;
+      delete old.activeTripId;
+      parsed.workspaceStash = null;
+      parsed.editingTripId = null;
+      if (st) Object.assign(parsed, { sites: st.sites, placements: st.placements, campsite: st.campsite });
+      else parsed.placements = [];
+    }
     return {
       ...defaults,
       ...parsed,
@@ -260,10 +277,16 @@ export const actions = {
     setState((s) => ({ ...s, settings: { ...s.settings, ...patch } }));
   },
   saveTrip(t: Trip) {
-    setState((s) => ({ ...s, trips: s.trips.some((x) => x.id === t.id) ? s.trips.map((x) => (x.id === t.id ? t : x)) : [...s.trips, t] }));
+    const u = { ...t, updatedAt: Date.now() };
+    setState((s) => ({ ...s, trips: s.trips.some((x) => x.id === t.id) ? s.trips.map((x) => (x.id === t.id ? u : x)) : [...s.trips, u] }));
   },
   removeTrip(id: string) {
-    setState((s) => ({ ...s, trips: s.trips.filter((x) => x.id !== id) }));
+    setState((s) => ({
+      ...s,
+      trips: s.trips.filter((x) => x.id !== id),
+      deletedTrips: { ...s.deletedTrips, [id]: Date.now() },
+      ...(s.editingTripId === id ? { editingTripId: null } : {}),
+    }));
   },
   rememberSite(campKey: string, siteKey: string, w: number, h: number) {
     if (!campKey || !siteKey || !(w > 0) || !(h > 0)) return;

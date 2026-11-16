@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { actions, getState, useStore } from '../store';
-import { dday, fmtTripDates, isPastTrip, linkCurrentLayout, newTrip } from '../trips';
+import { dday, fmtTripDates, isPastTrip, copyLayoutToTrip, newTrip } from '../trips';
 import { ask } from '../env';
 import { Modal } from './Modal';
 
@@ -11,7 +11,6 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
   const [done, setDone] = useState<string | null>(null);
   const [title, setTitle] = useState('');
   const [camp, setCamp] = useState(campsite.name);
-  const activeTripId = useStore((s) => s.activeTripId);
   const [start, setStart] = useState(newTrip().startDate);
   const [end, setEnd] = useState(newTrip().endDate);
   const list = useMemo(
@@ -22,8 +21,8 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
   const saveTo = (id: string) => {
     const t = getState().trips.find((x) => x.id === id);
     if (!t) return;
-    if (t.layout?.placements.length && getState().activeTripId !== id && !ask(`"${t.title || t.place.name}" 일정에 이미 배치도가 있어요. 지금 배치로 바꿀까요?`)) return;
-    linkCurrentLayout(id);
+    if (t.layout?.placements.length && !ask(`"${t.title || t.place.name}" 일정에 이미 배치도가 있어요. 지금 배치로 바꿀까요?`)) return;
+    copyLayoutToTrip(id);
     setDone(id);
   };
   const createNew = () => {
@@ -37,7 +36,7 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
       ...(cs.confirmed ? { siteW: cs.w, siteH: cs.h } : {}),
     };
     actions.saveTrip(t);
-    linkCurrentLayout(t.id);
+    copyLayoutToTrip(t.id);
     setDone(t.id);
   };
 
@@ -45,7 +44,7 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
     return (
       <Modal title="일정에 반영했어요" onClose={onClose}>
         <div className="gear-form">
-          <p style={{ color: 'var(--ink)' }}>배치도와 장비 목록을 일정에 반영했어요. 이제 배치를 고치면 이 일정에 자동으로 저장돼요. 일정에서 캠핑장 검색·날씨·가는 시간을 확인할 수 있어요.</p>
+          <p style={{ color: 'var(--ink)' }}>지금 배치와 장비 목록을 일정에 복사해 저장했어요(이 기기). 여기서 계속 고쳐도 일정은 바뀌지 않아요. 일정 배치를 고치려면 일정에서 [배치 확인·수정]을 누르거나, 다시 [일정에 반영]을 누르세요.</p>
           <div className="form-actions">
             <button className="btn ghost" onClick={onClose}>
               계속 배치하기
@@ -61,10 +60,10 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
   return (
     <Modal title="일정에 배치 반영" onClose={onClose}>
       <div className="gear-form">
-        <p className="muted small">지금 배치(장비 {getState().placements.length}개)를 캠핑 일정에 저장합니다. 나중에 일정에서 꺼내볼 수 있어요.</p>
+        <p className="muted small">지금 배치(장비 {getState().placements.length}개)를 골라 둔 일정에 복사해 저장해요. 반영한 뒤에는 서로 연결되지 않아요.</p>
         {list.length > 0 && (
           <>
-            <b className="small" style={{ color: 'var(--ink)' }}>기존 일정에 저장</b>
+            <b className="small" style={{ color: 'var(--ink)' }}>기존 일정에 반영</b>
             <div className="place-results">
               {list.map((t) => (
                 <button type="button" key={t.id} className="place-item" onClick={() => saveTo(t.id)}>
@@ -73,7 +72,7 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
                   </b>
                   <span>
                     {fmtTripDates(t)}
-                    {activeTripId === t.id ? ' · 지금 연결됨' : t.layout?.placements.length ? ' · 배치도 있음' : ''}
+                    {t.layout?.placements.length ? ' · 배치도 있음 (바꿔 저장)' : ''}
                   </span>
                 </button>
               ))}
@@ -101,7 +100,7 @@ export function SaveTripModal({ onClose, onOpenTrip }: { onClose: () => void; on
         </div>
         <div className="form-actions">
           <button className="btn primary" onClick={createNew} disabled={!start}>
-            새 일정으로 저장
+            새 일정 만들고 반영
           </button>
         </div>
       </div>

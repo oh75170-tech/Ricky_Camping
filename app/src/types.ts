@@ -169,6 +169,8 @@ export interface Trip {
   /** 캠핑 사진 id (최대 4장, 사진 자체는 이 기기 IndexedDB에 보관) */
   photos?: string[];
   createdAt: number;
+  /** 마지막 저장 시각 (기기 간 동기화 때 최신 판단) */
+  updatedAt?: number;
 }
 
 export interface HomePlace {

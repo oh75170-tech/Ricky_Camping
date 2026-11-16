@@ -270,7 +270,7 @@ input:-webkit-autofill { -webkit-box-shadow: 0 0 0 40px #fff inset; -webkit-text
 .pick-card { cursor: default; }
 .pick-card.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
 .pick-card input[type=checkbox] { width: 20px; height: 20px; margin-top: 2px; flex-shrink: 0; }
-.sticky-actions { position: sticky; bottom: -14px; display: flex; gap: 8px; justify-content: flex-end; padding: 10px 0 4px; background: var(--bg); border-top: 1px solid var(--line); margin-top: 6px; }
+.sticky-actions { position: sticky; bottom: -14px; display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; padding: 10px 0 4px; background: var(--bg); border-top: 1px solid var(--line); margin-top: 6px; }
 .loading::after { content: ' ⋯'; animation: blink 1.2s infinite; }
 @keyframes blink { 50% { opacity: .2; } }
 @media (max-width: 759px) { .catalog-search { flex-wrap: nowrap; } .catalog-search > .btn { white-space: nowrap; } }
@@ -426,3 +426,7 @@ a.btn { text-decoration: none; }
   .scene-cloud, .scene-lantern, .scene-glow, .steam, .scene-lid { animation: none !important; }
   .steam, .scene-lid { opacity: 0; }
 }
+.save-strip { font-size: 12px; color: var(--muted); background: var(--soft); padding: 6px 14px; border-bottom: 1px solid var(--line); }
+.save-strip.dirty { background: var(--ink); color: #fff; }
+.sync-opt { display: flex; gap: 6px; align-items: flex-start; font-size: 13px; color: var(--ink); line-height: 1.4; }
+.sync-opt input { margin-top: 2px; }

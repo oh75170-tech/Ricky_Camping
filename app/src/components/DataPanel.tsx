@@ -3,6 +3,7 @@ import { actions, getState, useStore } from '../store';
 import { deletePhotos } from '../photos';
 import { applyBackup, makeBackup, readBackup, type BackupFile, resolveConflict, syncNow, useCloudStatus } from '../cloud';
 import { downloadBlob } from '../share';
+import { syncTripsNow, useTripSyncStatus } from '../tripsync';
 import { ask, IS_PREVIEW } from '../env';
 import { Icon } from './Icon';
 
@@ -11,6 +12,8 @@ export function DataPanel() {
   const code = useStore((s) => s.settings.syncCode);
   const passcode = useStore((s) => s.settings.passcode);
   const cloud = useCloudStatus();
+  const syncTrips = useStore((s) => s.settings.syncTrips);
+  const trip = useTripSyncStatus();
   const [draft, setDraft] = useState(code);
   const [msg, setMsg] = useState<string | null>(null);
   const [pending, setPending] = useState<({ name: string } & BackupFile) | null>(null);
@@ -24,9 +27,9 @@ export function DataPanel() {
 
       {!IS_PREVIEW && (
         <div className="data-box">
-          <b>서버 자동 동기화</b>
+          <b>내 기기끼리 동기화</b>
           <p className="muted small">
-            동기화 코드를 정해두면 캠핑장비(직접 추가한 장비·고친 제원·보유/위시 목록)가 서버에 자동 저장돼요. 일정·사진·집 위치·배치는 이 기기에만 남고, 옮길 때는 아래 백업 파일을 쓰세요. 앱을 다시 깔거나 다른 기기에서도 같은 코드를 넣으면 그대로 불러옵니다.
+            같은 동기화 코드를 넣은 내 기기들끼리 자동으로 맞춰져요. 다른 사람에게는 보이지 않아요. 앱을 다시 깔거나 다른 기기에서도 같은 코드를 넣으면 그대로 불러옵니다.
             {!passcode && ' (먼저 위에서 AI 접속 코드를 넣어주세요)'}
           </p>
           <div className="row">
@@ -46,6 +49,7 @@ export function DataPanel() {
               onClick={() => {
                 actions.setSettings({ syncCode: draft.trim() });
                 syncNow({ firstConnect: true });
+                syncTripsNow();
               }}
             >
               {code && code === draft.trim() ? '다시 동기화' : '연결'}
@@ -84,6 +88,28 @@ export function DataPanel() {
               </div>
             </div>
           )}
+          <label className="sync-opt">
+            <input type="checkbox" checked disabled /> 캠핑장비 (직접 추가 장비·고친 제원·보유/위시) — 항상
+          </label>
+          <label className="sync-opt">
+            <input
+              type="checkbox"
+              checked={syncTrips}
+              disabled={!code}
+              onChange={(e) => {
+                actions.setSettings({ syncTrips: e.target.checked });
+                if (e.target.checked) syncTripsNow();
+              }}
+            />{' '}
+            캠핑일정·사진·집 위치 (켜면 내 다른 기기와 합쳐져요)
+          </label>
+          {code && syncTrips && trip.message && (
+            <div className="row small">
+              <span className={`status-dot ${trip.state === 'saved' ? 'on' : ''}`} />
+              <span>{trip.message}</span>
+            </div>
+          )}
+          <p className="muted small">배치 화면에서 하던 배치는 기기마다 따로예요(일정에 반영한 배치는 일정과 함께 동기화).</p>
           <p className="muted small">코드를 아는 사람은 같은 데이터를 볼 수 있으니, 남이 짐작하기 어려운 코드로 정해주세요.</p>
         </div>
       )}

@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { CanvasView, type CanvasHandle } from '../components/CanvasView';
 import { GearPicker } from '../components/GearPicker';
 import { GearForm } from '../components/GearForm';
@@ -11,7 +11,9 @@ import { SettingsModal } from '../components/SettingsModal';
 import { CampsiteModal } from '../components/CampsiteModal';
 import { CollabPanel } from '../components/CollabPanel';
 import { SaveTripModal } from '../components/SaveTripModal';
-import { closeTripLayout } from '../trips';
+import { endTripEdit, saveTripEdit, tripEditDirty } from '../trips';
+import { Modal } from '../components/Modal';
+import { setLeaveGuard } from '../nav';
 import { Icon } from '../components/Icon';
 import { getSyncStatus, useSyncStatus } from '../sync';
 import { actions, allBrands, allGear, getState, useStore } from '../store';
@@ -63,7 +65,31 @@ function suggestPosition(g: Gear, siteId: string, forceNewColumn: boolean) {
 
 export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip: (id: string) => void }) {
   const [showTrip, setShowTrip] = useState(false);
-  const activeTrip = useStore((s) => (s.activeTripId ? s.trips.find((t) => t.id === s.activeTripId) ?? null : null));
+  const editTrip = useStore((s) => (s.editingTripId ? s.trips.find((t) => t.id === s.editingTripId) ?? null : null));
+  const dirty = useStore((s) => (s.editingTripId ? tripEditDirty(s) : false));
+  const [leave, setLeave] = useState(false);
+  const [savedFlash, setSavedFlash] = useState(false);
+  // 기기 뒤로가기 포함: 저장 안 한 일정 배치가 있으면 나가기 전에 물어봄
+  useEffect(() => {
+    setLeaveGuard(() => {
+      if (getState().editingTripId && tripEditDirty()) {
+        setLeave(true);
+        return false;
+      }
+      return true;
+    });
+    return () => {
+      setLeaveGuard(null);
+      // 저장할 게 없으면 수정을 끝내고 하던 배치로 복귀
+      if (getState().editingTripId && !tripEditDirty()) endTripEdit();
+    };
+  }, []);
+  const finishEdit = () => {
+    endTripEdit();
+    setLeave(false);
+    onBack();
+  };
+  const back = () => (editTrip && dirty ? setLeave(true) : editTrip ? finishEdit() : onBack());
   const canvasRef = useRef<CanvasHandle>(null);
   const [tab, setTab] = useState<Tab | null>('pick');
   const [selected, setSelected] = useState<string | null>(null);
@@ -133,11 +159,11 @@ export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip
   return (
     <div className="planner">
       <header className="topbar">
-        <button className="icon-btn" onClick={onBack} aria-label="메인으로">
+        <button className="icon-btn" onClick={back} aria-label="뒤로">
           <Icon name="back" />
         </button>
         <h1>
-          장비 배치
+          {editTrip ? "일정 배치 수정" : "장비 배치"}
           {campsite.name && <small className="topbar-sub">{campsite.name}</small>}
         </h1>
         {sync.roomId && (
@@ -153,24 +179,34 @@ export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip
           <span className="dot" style={{ background: site.color }} />
           {site.name}
         </button>
-        <button className="site-badge" onClick={() => setShowTrip(true)} disabled={!placements.length} title="지금 배치를 캠핑 일정에 저장">
-          <Icon name="calendar" size={14} /> 일정
-        </button>
+        {!editTrip && (
+          <button className="site-badge" onClick={() => setShowTrip(true)} disabled={!placements.length} title="지금 배치를 캠핑 일정에 반영">
+            <Icon name="calendar" size={14} /> 일정에 반영
+          </button>
+        )}
         <button className="icon-btn" onClick={() => setShowSettings(true)} aria-label="설정">
           <Icon name="settings" />
         </button>
       </header>
-      {activeTrip && (
+      {editTrip && (
         <div className="trip-bar">
           <Icon name="calendar" size={16} />
           <span className="trip-bar-text">
-            <b>{activeTrip.title || activeTrip.place.name || '일정'}</b> 배치 중 · 고치면 일정에 자동 저장
+            <b>{editTrip.title || editTrip.place.name || '일정'}</b> 배치 수정 중 · {dirty ? '저장 안 됨' : savedFlash ? '✔ 저장했어요' : '저장된 상태'}
           </span>
-          <button className="btn small" onClick={() => onOpenTrip(activeTrip.id)}>
-            일정 보기
+          <button
+            className="btn small"
+            disabled={!dirty}
+            onClick={() => {
+              saveTripEdit();
+              setSavedFlash(true);
+              setTimeout(() => setSavedFlash(false), 2500);
+            }}
+          >
+            일정에 저장
           </button>
-          <button className="btn small ghost" onClick={() => closeTripLayout()}>
-            끝내기
+          <button className="btn small ghost" onClick={back}>
+            수정 끝내기
           </button>
         </div>
       )}
@@ -254,6 +290,26 @@ export function Planner({ onBack, onOpenTrip }: { onBack: () => void; onOpenTrip
         {specOpen && <SpecTable selectedId={selected} onSelect={setSelected} />}
       </footer>
       {showSettings && <SettingsModal onClose={() => setShowSettings(false)} />}
+      {leave && editTrip && (
+        <Modal title="저장하지 않은 배치가 있어요" onClose={() => setLeave(false)}>
+          <div className="gear-form">
+            <p style={{ color: 'var(--ink)' }}>
+              "{editTrip.title || editTrip.place.name || '일정'}" 일정의 배치를 고쳤어요. 일정에 저장할까요?
+            </p>
+            <div className="form-actions">
+              <button className="btn ghost" onClick={() => setLeave(false)}>
+                계속 수정
+              </button>
+              <button className="btn" onClick={finishEdit}>
+                저장 안 함
+              </button>
+              <button className="btn primary" onClick={() => (saveTripEdit(), finishEdit())}>
+                저장하고 나가기
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
       {showTrip && <SaveTripModal onClose={() => setShowTrip(false)} onOpenTrip={onOpenTrip} />}
       {showCampsite && (
         <CampsiteModal

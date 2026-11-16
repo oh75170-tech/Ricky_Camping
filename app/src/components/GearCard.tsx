@@ -18,6 +18,7 @@ export function GearCard({
   onVerify?: (g: Gear) => void;
 }) {
   const owned = useStore((s) => s.owned.includes(gear.id));
+  const isShared = useStore((s) => !!gear.custom && s.sharedGear.some((g) => g.id === gear.id));
   const wish = useStore((s) => s.wish.includes(gear.id));
   return (
     <div className="gear-card">
@@ -31,6 +32,7 @@ export function GearCard({
         </div>
         {gear.verified ? <span className="badge ok">확인됨</span> : <span className="badge warn">추정</span>}
         {gear.shared && !gear.custom && <span className="badge warn" title="다른 사용자가 추가한 장비">모두의 장비</span>}
+        {gear.custom && <span className="badge warn" title="내가 추가한 장비">{isShared ? '내 장비 · 공유됨' : '내 장비 · 나만'}</span>}
       </div>
       <div className="gear-dims">
         <span><Icon name="ruler" size={14} /> {dimText(gear)}</span>

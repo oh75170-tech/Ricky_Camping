@@ -66,7 +66,7 @@ let again = false;
 /** 내가 직접 추가·수정한 장비 중 아직 안 올린 것 올리기 */
 export async function pushMyGear(): Promise<void> {
   const base = serverUrl();
-  if (!base || IS_PREVIEW) return;
+  if (!base || IS_PREVIEW || !getState().settings.shareGear) return;
   if (pushing) {
     again = true;
     return;

@@ -1,5 +1,10 @@
 import { useState } from 'react';
 import { CATEGORIES, type Category, type Frame, type Gear, type Shape } from '../types';
+import { useStore } from '../store';
+
+/** 장비 저장 버튼 옆 안내: 어디에 저장되는지 */
+export const saveWhere = (share: boolean, sync: boolean) =>
+  `저장 위치: 이 기기의 장비목록${sync ? ' + 내 다른 기기(동기화)' : ''}${share ? ' + 모두의 장비목록(다른 사용자에게 공유)' : ' (모두에게 공유 꺼짐)'}`;
 
 const SHAPES: { id: Shape; label: string }[] = [
   { id: 'rect', label: '사각' },
@@ -35,6 +40,8 @@ export function GearForm({
   onSubmit: (g: Draft) => void;
   onCancel?: () => void;
 }) {
+  const shareGear = useStore((s) => s.settings.shareGear);
+  const syncOn = useStore((s) => !!s.settings.syncCode);
   const [d, setD] = useState<Draft>({
     brand: initial?.brand ?? '',
     category: initial?.category ?? 'tent',
@@ -199,6 +206,7 @@ export function GearForm({
       <label className="inline">
         <input type="checkbox" checked={!!d.verified} onChange={(e) => set('verified', e.target.checked)} /> 공식 제원으로 확인함
       </label>
+      <p className="muted small save-where">{saveWhere(shareGear, syncOn)}</p>
       <div className="form-actions">
         {onCancel && (
           <button type="button" className="btn ghost" onClick={onCancel}>
